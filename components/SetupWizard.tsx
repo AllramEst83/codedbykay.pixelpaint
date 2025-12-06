@@ -51,20 +51,34 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
   useEffect(() => {
     if (previewProject && canvasRef.current) {
       const ctx = canvasRef.current.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) {
+        console.error('Failed to get canvas context');
+        return;
+      }
 
       const { width, height, palette, grid } = previewProject;
       // We render the preview at a fixed scale per cell for sharpness, 
       // but CSS handles the actual display size/aspect ratio.
       const scale = 5; 
-      canvasRef.current.width = width * scale;
-      canvasRef.current.height = height * scale;
+      const canvasWidth = width * scale;
+      const canvasHeight = height * scale;
+      
+      // Set canvas internal dimensions
+      canvasRef.current.width = canvasWidth;
+      canvasRef.current.height = canvasHeight;
+      
+      // Clear the canvas first
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
+      // Draw the grid
       grid.forEach((cell, i) => {
          const col = i % width;
          const row = Math.floor(i / width);
-         ctx.fillStyle = palette[cell.colorIndex];
-         ctx.fillRect(col * scale, row * scale, scale, scale);
+         const color = palette[cell.colorIndex];
+         if (color) {
+           ctx.fillStyle = color;
+           ctx.fillRect(col * scale, row * scale, scale, scale);
+         }
       });
     }
   }, [previewProject]);
@@ -80,8 +94,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
   };
 
   return (
-    <div className="flex flex-col h-full max-w-5xl mx-auto p-4 md:p-6">
-      <div className="flex items-center justify-between mb-6 shrink-0">
+    <div className="flex flex-col min-h-screen max-w-5xl mx-auto p-4 md:p-6">
+      <div className="flex items-center justify-between mb-6">
         <button onClick={onBack} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-600">
           <ArrowLeft size={24} />
         </button>
@@ -89,9 +103,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
         <div className="w-10" />
       </div>
 
-      <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden min-h-0">
+      <div className="flex flex-col md:flex-row gap-6 pb-6">
         {/* Preview Area */}
-        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-4 relative shadow-inner">
+        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-auto p-4 relative shadow-inner min-h-[400px] w-full order-1 md:order-1">
            {loading && (
              <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center">
                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -99,22 +113,28 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
            )}
            
            {previewProject ? (
-              <canvas 
-                ref={canvasRef}
-                className="max-w-full max-h-full object-contain shadow-lg bg-white"
-                style={{
-                  aspectRatio: `${previewProject.width} / ${previewProject.height}`
-                }}
-              />
+              <div className="flex items-center justify-center w-full min-h-[400px] py-4">
+                <canvas 
+                  ref={canvasRef}
+                  className="shadow-lg bg-white rounded border-2 border-slate-400"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '70vh',
+                    display: 'block',
+                    minWidth: '200px',
+                    minHeight: '200px'
+                  }}
+                />
+              </div>
            ) : (
-             <div className="text-slate-400">Processing image...</div>
+             <div className="flex items-center justify-center min-h-[400px] text-slate-400">Processing image...</div>
            )}
         </div>
 
         {/* Controls */}
-        <div className="md:w-80 flex flex-col gap-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm shrink-0 overflow-y-auto">
+        <div className="md:w-80 flex flex-col bg-white p-6 rounded-xl border border-slate-200 shadow-sm order-2 md:order-2">
           {/* Grid Density */}
-          <div>
+          <div className="mb-6">
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-4">
               <Grid3X3 size={18} />
               Detail Level
@@ -135,7 +155,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
           </div>
 
           {/* Palette Size */}
-          <div>
+          <div className="mb-6">
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-4">
               <Palette size={18} />
               Palette Size
@@ -158,7 +178,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
             </div>
           </div>
 
-          <div className="space-y-3 pt-4 border-t border-slate-100">
+          <div className="space-y-3 pt-4 border-t border-slate-100 mb-6">
              <div className="flex justify-between text-sm py-2 border-b border-slate-100">
                <span className="text-slate-500">Grid Size</span>
                <span className="font-medium">{previewProject ? `${previewProject.width} x ${previewProject.height}` : '-'}</span>
@@ -169,7 +189,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
              </div>
           </div>
           
-          <div className="mt-auto pt-4">
+          <div className="pt-4 border-t border-slate-200">
              <Button 
                fullWidth 
                size="lg" 
