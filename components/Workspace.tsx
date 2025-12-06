@@ -359,7 +359,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
 
       {/* Bottom Palette */}
       <div className="bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 pb-safe">
-        <div className="flex gap-4 overflow-x-auto no-scrollbar p-4 px-6 snap-x">
+        <div className="flex gap-4 overflow-x-auto no-scrollbar p-4 pl-8 pr-6 snap-x">
           {project.palette.map((color, idx) => {
             const isSelected = idx === selectedColorIndex;
             const progress = getColorProgress(idx);
