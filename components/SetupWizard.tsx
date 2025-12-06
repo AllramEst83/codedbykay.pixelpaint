@@ -80,39 +80,40 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
   };
 
   return (
-    <div className="flex flex-col h-full max-w-5xl mx-auto p-4 md:p-6 overflow-y-auto">
-      <div className="flex items-center justify-between mb-6 shrink-0">
-        <button onClick={onBack} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-600">
-          <ArrowLeft size={24} />
-        </button>
-        <h2 className="text-xl font-bold text-slate-800">Customize Puzzle</h2>
-        <div className="w-10" />
-      </div>
-
-      <div className="flex flex-col md:flex-row gap-6 flex-1 min-h-0">
-        {/* Preview Area */}
-        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-4 relative shadow-inner">
-           {loading && (
-             <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center">
-               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-             </div>
-           )}
-           
-           {previewProject ? (
-              <canvas 
-                ref={canvasRef}
-                className="max-w-full max-h-full object-contain shadow-lg bg-white"
-                style={{
-                  aspectRatio: `${previewProject.width} / ${previewProject.height}`
-                }}
-              />
-           ) : (
-             <div className="text-slate-400">Processing image...</div>
-           )}
+    <div className="h-full overflow-y-auto">
+      <div className="flex flex-col max-w-5xl mx-auto p-4 md:p-6 min-h-full">
+        <div className="flex items-center justify-between mb-6 shrink-0">
+          <button onClick={onBack} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-600">
+            <ArrowLeft size={24} />
+          </button>
+          <h2 className="text-xl font-bold text-slate-800">Customize Puzzle</h2>
+          <div className="w-10" />
         </div>
 
-        {/* Controls */}
-        <div className="md:w-80 flex flex-col gap-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm shrink-0 overflow-y-auto">
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Preview Area */}
+          <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-4 relative shadow-inner min-h-[300px] md:min-h-0">
+             {loading && (
+               <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+               </div>
+             )}
+             
+             {previewProject ? (
+                <canvas 
+                  ref={canvasRef}
+                  className="max-w-full max-h-full object-contain shadow-lg bg-white"
+                  style={{
+                    aspectRatio: `${previewProject.width} / ${previewProject.height}`
+                  }}
+                />
+             ) : (
+               <div className="text-slate-400">Processing image...</div>
+             )}
+          </div>
+
+          {/* Controls */}
+          <div className="md:w-80 flex flex-col gap-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm shrink-0">
           {/* Grid Density */}
           <div>
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-4">
@@ -169,7 +170,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
              </div>
           </div>
           
-          <div className="mt-auto pt-4">
+          <div className="pt-4">
              <Button 
                fullWidth 
                size="lg" 
