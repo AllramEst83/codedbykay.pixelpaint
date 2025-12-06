@@ -80,7 +80,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
   };
 
   return (
-    <div className="flex flex-col h-full max-w-5xl mx-auto p-4 md:p-6">
+    <div className="flex flex-col min-h-screen max-w-5xl mx-auto p-4 md:p-6">
       <div className="flex items-center justify-between mb-6 shrink-0">
         <button onClick={onBack} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-600">
           <ArrowLeft size={24} />
@@ -89,9 +89,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
         <div className="w-10" />
       </div>
 
-      <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row gap-6 md:overflow-hidden md:min-h-0">
         {/* Preview Area */}
-        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-4 relative shadow-inner">
+        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-4 relative shadow-inner min-h-[300px] md:min-h-0">
            {loading && (
              <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center">
                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -112,7 +112,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
         </div>
 
         {/* Controls */}
-        <div className="md:w-80 flex flex-col gap-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm shrink-0 overflow-y-auto">
+        <div className="md:w-80 flex flex-col gap-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm shrink-0 md:overflow-y-auto">
           {/* Grid Density */}
           <div>
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-4">
@@ -169,13 +169,13 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
              </div>
           </div>
           
-          <div className="mt-auto pt-4">
+          <div className="md:mt-auto pt-4 pb-2 md:pb-0">
              <Button 
                fullWidth 
                size="lg" 
                onClick={handleStart} 
                disabled={!previewProject || loading || isStarting}
-               className="flex items-center justify-center gap-2"
+               className="flex items-center justify-center gap-2 shadow-lg"
              >
                {isStarting ? (
                  <>

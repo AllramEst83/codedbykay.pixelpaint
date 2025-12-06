@@ -307,7 +307,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 relative">
+    <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden">
       {/* Top Bar */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm z-10 shrink-0">
         <button onClick={onExit} className="text-slate-500 hover:text-slate-800 flex items-center gap-1 text-sm font-medium">
