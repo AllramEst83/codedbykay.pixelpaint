@@ -1,0 +1,5 @@
+{
+  "name": "PixelPaint - Color by Number",
+  "description": "Upload your own photos and turn them into interactive color-by-number pixel art puzzles.",
+  "requestFramePermissions": []
+}
