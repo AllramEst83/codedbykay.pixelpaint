@@ -80,8 +80,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
   };
 
   return (
-    <div className="flex flex-col h-screen max-w-5xl mx-auto p-4 md:p-6 overflow-hidden">
-      <div className="flex items-center justify-between mb-6 shrink-0">
+    <div className="flex flex-col h-full max-w-5xl mx-auto p-3 md:p-4 overflow-hidden">
+      <div className="flex items-center justify-between mb-3 shrink-0">
         <button onClick={onBack} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-600">
           <ArrowLeft size={24} />
         </button>
@@ -89,9 +89,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
         <div className="w-10" />
       </div>
 
-      <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row gap-3 overflow-hidden min-h-0">
         {/* Preview Area */}
-        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-4 relative shadow-inner min-h-0">
+        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-3 relative shadow-inner min-h-0">
            {loading && (
              <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center">
                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -112,66 +112,68 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
         </div>
 
         {/* Controls */}
-        <div className="md:w-80 flex flex-col gap-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm shrink-0 min-h-0">
-          <div className="flex-1 overflow-y-auto min-h-0">
-            {/* Grid Density */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-4">
-                <Grid3X3 size={18} />
-                Detail Level
-              </label>
-              <input 
-                type="range" 
-                min="32" 
-                max="150" 
-                step="2"
-                value={density} 
-                onChange={(e) => setDensity(parseInt(e.target.value))}
-                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-              />
-              <div className="flex justify-between text-xs text-slate-500 mt-2">
-                <span>Blocky</span>
-                <span>Detailed</span>
+        <div className="md:w-80 flex flex-col bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0 min-h-0 h-full">
+          <div className="flex-1 overflow-y-auto min-h-0 pr-2 -mr-2">
+            <div className="space-y-3 pr-2">
+              {/* Grid Density */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                  <Grid3X3 size={18} />
+                  Detail Level
+                </label>
+                <input 
+                  type="range" 
+                  min="32" 
+                  max="150" 
+                  step="2"
+                  value={density} 
+                  onChange={(e) => setDensity(parseInt(e.target.value))}
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                />
+                <div className="flex justify-between text-xs text-slate-500 mt-1.5">
+                  <span>Blocky</span>
+                  <span>Detailed</span>
+                </div>
               </div>
-            </div>
 
-            {/* Palette Size */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-4">
-                <Palette size={18} />
-                Palette Size
-              </label>
-              <input 
-                type="range" 
-                min="2" 
-                max="200" 
-                step="1"
-                value={maxColors} 
-                onChange={(e) => setMaxColors(parseInt(e.target.value))}
-                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-              />
-              <div className="flex justify-between text-xs text-slate-500 mt-2">
-                <span>Simpler</span>
-                <span>More Colors</span>
+              {/* Palette Size */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                  <Palette size={18} />
+                  Palette Size
+                </label>
+                <input 
+                  type="range" 
+                  min="2" 
+                  max="200" 
+                  step="1"
+                  value={maxColors} 
+                  onChange={(e) => setMaxColors(parseInt(e.target.value))}
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                />
+                <div className="flex justify-between text-xs text-slate-500 mt-1.5">
+                  <span>Simpler</span>
+                  <span>More Colors</span>
+                </div>
+                <div className="text-center text-sm font-medium text-indigo-600 mt-1">
+                  {maxColors} Colors
+                </div>
               </div>
-              <div className="text-center text-sm font-medium text-indigo-600 mt-1">
-                {maxColors} Colors
-              </div>
-            </div>
 
-            <div className="space-y-3 pt-4 border-t border-slate-100">
-               <div className="flex justify-between text-sm py-2 border-b border-slate-100">
-                 <span className="text-slate-500">Grid Size</span>
-                 <span className="font-medium">{previewProject ? `${previewProject.width} x ${previewProject.height}` : '-'}</span>
-               </div>
-               <div className="flex justify-between text-sm py-2 border-b border-slate-100">
-                 <span className="text-slate-500">Colors Found</span>
-                 <span className="font-medium">{previewProject ? previewProject.palette.length : '-'}</span>
-               </div>
+              <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                 <div className="flex justify-between text-sm py-1 border-b border-slate-100">
+                   <span className="text-slate-500">Grid Size</span>
+                   <span className="font-medium">{previewProject ? `${previewProject.width} x ${previewProject.height}` : '-'}</span>
+                 </div>
+                 <div className="flex justify-between text-sm py-1 border-b border-slate-100">
+                   <span className="text-slate-500">Colors Found</span>
+                   <span className="font-medium">{previewProject ? previewProject.palette.length : '-'}</span>
+                 </div>
+              </div>
             </div>
           </div>
           
-          <div className="pt-4 border-t border-slate-200 shrink-0">
+          <div className="pt-2 border-t border-slate-200 shrink-0">
              <Button 
                fullWidth 
                size="lg" 
