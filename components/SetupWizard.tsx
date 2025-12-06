@@ -57,8 +57,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
       // We render the preview at a fixed scale per cell for sharpness, 
       // but CSS handles the actual display size/aspect ratio.
       const scale = 5; 
-      canvasRef.current.width = width * scale;
-      canvasRef.current.height = height * scale;
+      const canvasWidth = width * scale;
+      const canvasHeight = height * scale;
+      
+      canvasRef.current.width = canvasWidth;
+      canvasRef.current.height = canvasHeight;
+      
+      // Clear the canvas first
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
       grid.forEach((cell, i) => {
          const col = i % width;
@@ -91,7 +97,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
 
       <div className="flex flex-col md:flex-row gap-6 pb-6">
         {/* Preview Area */}
-        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-4 relative shadow-inner min-h-[400px]">
+        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-auto flex items-center justify-center p-4 relative shadow-inner min-h-[400px] w-full">
            {loading && (
              <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center">
                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -101,9 +107,12 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
            {previewProject ? (
               <canvas 
                 ref={canvasRef}
-                className="max-w-full max-h-[70vh] object-contain shadow-lg bg-white"
+                className="max-w-full max-h-[600px] w-auto h-auto shadow-lg bg-white rounded"
                 style={{
-                  aspectRatio: `${previewProject.width} / ${previewProject.height}`
+                  aspectRatio: `${previewProject.width} / ${previewProject.height}`,
+                  display: 'block',
+                  maxWidth: '100%',
+                  height: 'auto'
                 }}
               />
            ) : (
