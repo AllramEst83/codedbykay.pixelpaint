@@ -80,8 +80,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
   };
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="flex flex-col max-w-5xl mx-auto p-4 md:p-6 min-h-full">
+    <div className="h-screen w-full overflow-y-auto overflow-x-hidden">
+      <div className="flex flex-col max-w-5xl mx-auto p-4 md:p-6 pb-8">
         <div className="flex items-center justify-between mb-6 shrink-0">
           <button onClick={onBack} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-600">
             <ArrowLeft size={24} />
@@ -92,7 +92,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
 
         <div className="flex flex-col md:flex-row gap-6">
           {/* Preview Area */}
-          <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-4 relative shadow-inner min-h-[300px] md:min-h-0">
+          <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-4 relative shadow-inner min-h-[250px] md:min-h-0 md:flex-1">
              {loading && (
                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center">
                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
