@@ -16,8 +16,7 @@
       }
       /* Prevent pull-to-refresh on mobile to improve canvas interaction */
       body {
-        overscroll-behavior-y: none;
-        touch-action: manipulation;
+        overscroll-behavior-y: contain;
       }
     </style>
   <script type="importmap">
@@ -31,8 +30,8 @@
 }
 </script>
 </head>
-  <body class="bg-slate-50 text-slate-900 h-screen w-screen overflow-hidden selection:bg-indigo-100">
-    <div id="root" class="h-full w-full"></div>
+  <body class="bg-slate-50 text-slate-900 selection:bg-indigo-100">
+    <div id="root" class="min-h-screen"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
