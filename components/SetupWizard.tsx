@@ -51,7 +51,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
   useEffect(() => {
     if (previewProject && canvasRef.current) {
       const ctx = canvasRef.current.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) {
+        console.error('Failed to get canvas context');
+        return;
+      }
 
       const { width, height, palette, grid } = previewProject;
       // We render the preview at a fixed scale per cell for sharpness, 
@@ -60,17 +63,22 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
       const canvasWidth = width * scale;
       const canvasHeight = height * scale;
       
+      // Set canvas internal dimensions
       canvasRef.current.width = canvasWidth;
       canvasRef.current.height = canvasHeight;
       
       // Clear the canvas first
       ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
+      // Draw the grid
       grid.forEach((cell, i) => {
          const col = i % width;
          const row = Math.floor(i / width);
-         ctx.fillStyle = palette[cell.colorIndex];
-         ctx.fillRect(col * scale, row * scale, scale, scale);
+         const color = palette[cell.colorIndex];
+         if (color) {
+           ctx.fillStyle = color;
+           ctx.fillRect(col * scale, row * scale, scale, scale);
+         }
       });
     }
   }, [previewProject]);
@@ -97,7 +105,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
 
       <div className="flex flex-col md:flex-row gap-6 pb-6">
         {/* Preview Area */}
-        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-auto flex items-center justify-center p-4 relative shadow-inner min-h-[400px] w-full">
+        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-auto p-4 relative shadow-inner min-h-[400px] w-full order-1 md:order-1">
            {loading && (
              <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center">
                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -105,23 +113,26 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
            )}
            
            {previewProject ? (
-              <canvas 
-                ref={canvasRef}
-                className="max-w-full max-h-[600px] w-auto h-auto shadow-lg bg-white rounded"
-                style={{
-                  aspectRatio: `${previewProject.width} / ${previewProject.height}`,
-                  display: 'block',
-                  maxWidth: '100%',
-                  height: 'auto'
-                }}
-              />
+              <div className="flex items-center justify-center w-full min-h-[400px] py-4">
+                <canvas 
+                  ref={canvasRef}
+                  className="shadow-lg bg-white rounded border-2 border-slate-400"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '70vh',
+                    display: 'block',
+                    minWidth: '200px',
+                    minHeight: '200px'
+                  }}
+                />
+              </div>
            ) : (
-             <div className="text-slate-400">Processing image...</div>
+             <div className="flex items-center justify-center min-h-[400px] text-slate-400">Processing image...</div>
            )}
         </div>
 
         {/* Controls */}
-        <div className="md:w-80 flex flex-col bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="md:w-80 flex flex-col bg-white p-6 rounded-xl border border-slate-200 shadow-sm order-2 md:order-2">
           {/* Grid Density */}
           <div className="mb-6">
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-4">
