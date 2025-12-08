@@ -7,6 +7,9 @@ import { Workspace } from './components/Workspace';
 import { Button } from './components/Button';
 import { getProjects, saveProject, deleteProject } from './services/storage';
 
+// Get app version from Vite build
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.1.0';
+
 function App() {
   const [view, setView] = useState<AppView>('HOME');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -89,6 +92,9 @@ function App() {
           <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
             PixelPaint
           </h1>
+          <p className="text-sm text-slate-400 font-medium">
+            v{APP_VERSION}
+          </p>
           <p className="text-lg text-slate-600 max-w-lg mx-auto">
             Turn your favorite memories into relaxing color-by-number pixel art puzzles.
           </p>
