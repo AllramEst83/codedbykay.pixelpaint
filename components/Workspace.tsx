@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { ArrowLeft, Check, Minus, Plus, Lightbulb, LightbulbOff, Maximize } from 'lucide-react';
+import { ArrowLeft, Check, Minus, Plus, Lightbulb, LightbulbOff, Maximize, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ProjectData, Cell } from '../types';
 import { saveProject } from '../services/storage';
 
@@ -17,16 +17,85 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [completedPercent, setCompletedPercent] = useState(0);
   const [showHighlight, setShowHighlight] = useState(true);
+  const [isOverHighlightedTile, setIsOverHighlightedTile] = useState(false);
   
   // Refs for gesture handling
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const paletteScrollRef = useRef<HTMLDivElement>(null);
   
   // Cache for multi-touch pointers
   const evCache = useRef<React.PointerEvent[]>([]);
   const prevDiff = useRef<number>(-1);
   const lastPointerPos = useRef({ x: 0, y: 0 });
   const totalDragDistance = useRef(0);
+  
+  // Refs to track current zoom and pan for wheel handler (avoid stale closures)
+  const zoomRef = useRef(zoom);
+  const panRef = useRef(pan);
+  
+  // State for palette scrolling
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+  
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
+  
+  // Check if palette can scroll
+  const checkPaletteScroll = useCallback(() => {
+    const paletteContainer = paletteScrollRef.current;
+    if (!paletteContainer) return;
+    
+    const { scrollLeft, scrollWidth, clientWidth } = paletteContainer;
+    setCanScrollLeft(scrollLeft > 0);
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 1); // -1 for rounding
+  }, []);
+  
+  // Check scroll on mount and when palette changes
+  useEffect(() => {
+    checkPaletteScroll();
+    const paletteContainer = paletteScrollRef.current;
+    if (paletteContainer) {
+      paletteContainer.addEventListener('scroll', checkPaletteScroll);
+      // Also check on resize
+      window.addEventListener('resize', checkPaletteScroll);
+      return () => {
+        paletteContainer.removeEventListener('scroll', checkPaletteScroll);
+        window.removeEventListener('resize', checkPaletteScroll);
+      };
+    }
+  }, [checkPaletteScroll, project.palette.length]);
+  
+  // Auto-scroll to selected color when it changes
+  useEffect(() => {
+    const paletteContainer = paletteScrollRef.current;
+    if (!paletteContainer) return;
+    
+    // Find the selected color button and scroll it into view
+    const selectedButton = paletteContainer.querySelector(`[data-color-index="${selectedColorIndex}"]`) as HTMLElement;
+    if (selectedButton) {
+      selectedButton.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [selectedColorIndex]);
+  
+  // Scroll palette left/right
+  const scrollPaletteLeft = () => {
+    const paletteContainer = paletteScrollRef.current;
+    if (!paletteContainer) return;
+    paletteContainer.scrollBy({ left: -200, behavior: 'smooth' });
+  };
+  
+  const scrollPaletteRight = () => {
+    const paletteContainer = paletteScrollRef.current;
+    if (!paletteContainer) return;
+    paletteContainer.scrollBy({ left: 200, behavior: 'smooth' });
+  };
 
   // Constants
   const BASE_CELL_SIZE = 20; // Pixels per cell at zoom 1
@@ -44,7 +113,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     return () => clearTimeout(timer);
   }, [grid, project]);
 
-  // Canvas Drawing Logic
+  // Canvas Drawing Logic - Optimized to only draw visible cells
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -68,55 +137,71 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     const totalWidth = project.width * cellSize;
     const totalHeight = project.height * cellSize;
 
-    // Draw white background for the image area
+    // Calculate visible area in grid coordinates
+    const invZoom = 1 / zoom;
+    const viewLeft = (-pan.x) * invZoom;
+    const viewTop = (-pan.y) * invZoom;
+    const viewRight = viewLeft + (canvas.width * invZoom);
+    const viewBottom = viewTop + (canvas.height * invZoom);
+
+    // Calculate which cells are visible
+    const startCol = Math.max(0, Math.floor(viewLeft / cellSize));
+    const endCol = Math.min(project.width - 1, Math.ceil(viewRight / cellSize));
+    const startRow = Math.max(0, Math.floor(viewTop / cellSize));
+    const endRow = Math.min(project.height - 1, Math.ceil(viewBottom / cellSize));
+
+    // Draw white background for the visible image area
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, totalWidth, totalHeight);
     
-    // Draw cells
-    for (let i = 0; i < grid.length; i++) {
-      const col = i % project.width;
-      const row = Math.floor(i / project.width);
-      const x = col * cellSize;
-      const y = row * cellSize;
-      const cell = grid[i];
+    // Draw only visible cells
+    for (let row = startRow; row <= endRow; row++) {
+      for (let col = startCol; col <= endCol; col++) {
+        const i = row * project.width + col;
+        if (i < 0 || i >= grid.length) continue;
+        
+        const x = col * cellSize;
+        const y = row * cellSize;
+        const cell = grid[i];
 
-      if (cell.filled) {
-        ctx.fillStyle = project.palette[cell.colorIndex];
-        ctx.fillRect(x, y, cellSize, cellSize);
-      } else {
-        // Highlight active color targets
-        const isTarget = cell.colorIndex === selectedColorIndex;
-        const shouldHighlight = isTarget && showHighlight;
+        if (cell.filled) {
+          ctx.fillStyle = project.palette[cell.colorIndex];
+          ctx.fillRect(x, y, cellSize, cellSize);
+        } else {
+          // Highlight active color targets
+          const isTarget = cell.colorIndex === selectedColorIndex;
+          const shouldHighlight = isTarget && showHighlight;
 
-        if (shouldHighlight) {
-            // Light highlight to show user where to click
-            ctx.fillStyle = '#e0e7ff'; // Indigo-50-ish
-            ctx.fillRect(x, y, cellSize, cellSize);
-        }
+          if (shouldHighlight) {
+              // Light highlight to show user where to click
+              ctx.fillStyle = '#e0e7ff'; // Indigo-50-ish
+              ctx.fillRect(x, y, cellSize, cellSize);
+          }
 
-        // Draw number if zoomed in enough
-        if (zoom > 0.8) {
-           ctx.lineWidth = 1 / zoom; // Scale border thickness
-           
-           // Highlight border slightly if target
-           ctx.strokeStyle = shouldHighlight ? '#c7d2fe' : '#f1f5f9';
-           ctx.strokeRect(x, y, cellSize, cellSize);
-           
-           // Draw number text
-           // If target, bold and dark blue. If not, grey.
-           ctx.fillStyle = shouldHighlight ? '#4338ca' : '#94a3b8';
-           ctx.font = shouldHighlight ? 'bold 10px sans-serif' : '10px sans-serif';
-           ctx.textAlign = 'center';
-           ctx.textBaseline = 'middle';
-           
-           // Display 1-based index for human friendliness
-           ctx.fillText(`${cell.colorIndex + 1}`, x + cellSize/2, y + cellSize/2);
-        } else if (zoom > 0.3) {
-            // When zoomed out but not super far, just show hint of grid
-           if (shouldHighlight) {
-               ctx.fillStyle = '#e0e7ff';
-               ctx.fillRect(x, y, cellSize, cellSize);
-           }
+          // Draw number if zoomed in enough
+          if (zoom > 0.8) {
+             ctx.lineWidth = 1 / zoom; // Scale border thickness
+             
+             // Highlight border slightly if target
+             ctx.strokeStyle = shouldHighlight ? '#c7d2fe' : '#f1f5f9';
+             ctx.strokeRect(x, y, cellSize, cellSize);
+             
+             // Draw number text
+             // If target, bold and dark blue. If not, grey.
+             ctx.fillStyle = shouldHighlight ? '#4338ca' : '#94a3b8';
+             ctx.font = shouldHighlight ? 'bold 10px sans-serif' : '10px sans-serif';
+             ctx.textAlign = 'center';
+             ctx.textBaseline = 'middle';
+             
+             // Display 1-based index for human friendliness
+             ctx.fillText(`${cell.colorIndex + 1}`, x + cellSize/2, y + cellSize/2);
+          } else if (zoom > 0.3) {
+              // When zoomed out but not super far, just show hint of grid
+             if (shouldHighlight) {
+                 ctx.fillStyle = '#e0e7ff';
+                 ctx.fillRect(x, y, cellSize, cellSize);
+             }
+          }
         }
       }
     }
@@ -150,6 +235,39 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
        });
     }
   }, []);
+
+  // Check if cursor is over a highlighted tile
+  const checkIfOverHighlightedTile = (clientX: number, clientY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      setIsOverHighlightedTile(false);
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const clickX = clientX - rect.left;
+    const clickY = clientY - rect.top;
+
+    // Transform coordinate back to grid space
+    const gridX = (clickX - pan.x) / zoom;
+    const gridY = (clickY - pan.y) / zoom;
+
+    const col = Math.floor(gridX / BASE_CELL_SIZE);
+    const row = Math.floor(gridY / BASE_CELL_SIZE);
+
+    if (col >= 0 && col < project.width && row >= 0 && row < project.height) {
+      const index = row * project.width + col;
+      const cell = grid[index];
+      
+      // Check if this is a highlighted tile (unfilled cell matching selected color)
+      const isHighlighted = !cell.filled && 
+                            cell.colorIndex === selectedColorIndex && 
+                            showHighlight;
+      setIsOverHighlightedTile(isHighlighted);
+    } else {
+      setIsOverHighlightedTile(false);
+    }
+  };
 
   // Event Handlers
   const handleTap = (clientX: number, clientY: number) => {
@@ -190,6 +308,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     e.currentTarget.setPointerCapture(e.pointerId);
 
     setIsDragging(true);
+    setIsOverHighlightedTile(false); // Reset cursor when starting to drag
     lastPointerPos.current = { x: e.clientX, y: e.clientY };
     
     // Only reset total drag if we are starting a fresh interaction (1 finger)
@@ -242,6 +361,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     }
   };
 
+  // Handle mouse move for cursor detection (separate from pointer events for better desktop support)
+  const handleMouseMove = (e: React.MouseEvent) => {
+    // Only check cursor when not dragging
+    if (!isDragging && evCache.current.length === 0) {
+      checkIfOverHighlightedTile(e.clientX, e.clientY);
+    }
+  };
+
   const handlePointerUp = (e: React.PointerEvent) => {
     // Remove from cache
     const index = evCache.current.findIndex(ev => ev.pointerId === e.pointerId);
@@ -274,6 +401,46 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   // Zoom controls
   const zoomIn = () => setZoom(z => Math.min(z * 1.2, 5));
   const zoomOut = () => setZoom(z => Math.max(z / 1.2, 0.2));
+
+  // Mouse wheel zoom handler - attached directly to DOM to allow preventDefault
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      
+      const rect = container.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      // Use refs to get current values (avoid stale closures)
+      const currentZoom = zoomRef.current;
+      const currentPan = panRef.current;
+
+      // Calculate zoom factor (negative deltaY = zoom in, positive = zoom out)
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.max(0.1, Math.min(5, currentZoom * zoomFactor));
+
+      // Calculate the point in world coordinates before zoom
+      const worldX = (mouseX - currentPan.x) / currentZoom;
+      const worldY = (mouseY - currentPan.y) / currentZoom;
+
+      // Calculate new pan to keep the point under the cursor in the same place
+      const newPanX = mouseX - worldX * newZoom;
+      const newPanY = mouseY - worldY * newZoom;
+
+      setZoom(newZoom);
+      setPan({ x: newPanX, y: newPanY });
+    };
+
+    // Add event listener with passive: false to allow preventDefault
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, []); // Empty deps - using refs for current values
   
   const handleCenter = () => {
     const container = containerRef.current;
@@ -329,17 +496,25 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       </div>
 
       {/* Main Canvas Area */}
-      <div ref={containerRef} className="flex-1 overflow-hidden relative touch-none bg-slate-100">
+      <div 
+        ref={containerRef} 
+        className="flex-1 overflow-hidden relative touch-none bg-slate-100"
+      >
         <canvas
           ref={canvasRef}
           width={containerRef.current?.clientWidth || window.innerWidth}
           height={containerRef.current?.clientHeight || window.innerHeight}
-          className="absolute inset-0 cursor-move touch-none"
+          className={`absolute inset-0 touch-none ${isOverHighlightedTile ? 'cursor-pointer' : 'cursor-move'}`}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
+          onPointerLeave={(e) => {
+            setIsOverHighlightedTile(false);
+            handlePointerUp(e);
+          }}
           onPointerCancel={handlePointerUp}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setIsOverHighlightedTile(false)}
           style={{ touchAction: 'none' }} 
         />
         
@@ -359,7 +534,21 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
 
       {/* Bottom Palette */}
       <div className="bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 pb-safe">
-        <div className="flex gap-4 overflow-x-auto no-scrollbar p-4 px-6 snap-x">
+        <div className="flex items-stretch">
+          {/* Left scroll button - hidden on mobile, visible on desktop */}
+          <button
+            onClick={scrollPaletteLeft}
+            disabled={!canScrollLeft}
+            className="hidden md:flex items-center justify-center w-12 bg-white hover:bg-slate-50 border-r border-slate-200 transition-colors shrink-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
+            aria-label="Scroll palette left"
+          >
+            <ChevronLeft size={20} className="text-slate-600" />
+          </button>
+          
+          <div 
+            ref={paletteScrollRef}
+            className="flex gap-4 overflow-x-auto no-scrollbar p-4 snap-x flex-1"
+          >
           {project.palette.map((color, idx) => {
             const isSelected = idx === selectedColorIndex;
             const progress = getColorProgress(idx);
@@ -368,6 +557,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
             return (
               <button
                 key={idx}
+                data-color-index={idx}
                 onClick={() => setSelectedColorIndex(idx)}
                 className={`
                   flex-shrink-0 relative
@@ -404,6 +594,17 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
               </button>
             );
           })}
+          </div>
+          
+          {/* Right scroll button - hidden on mobile, visible on desktop */}
+          <button
+            onClick={scrollPaletteRight}
+            disabled={!canScrollRight}
+            className="hidden md:flex items-center justify-center w-12 bg-white hover:bg-slate-50 border-l border-slate-200 transition-colors shrink-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
+            aria-label="Scroll palette right"
+          >
+            <ChevronRight size={20} className="text-slate-600" />
+          </button>
         </div>
       </div>
     </div>

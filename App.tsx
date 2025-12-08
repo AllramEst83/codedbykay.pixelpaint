@@ -64,7 +64,10 @@ function App() {
     return (
       <SetupWizard 
         imageFile={selectedFile} 
-        onBack={() => setView('HOME')} 
+        onBack={() => {
+          setSelectedFile(null);
+          setView('HOME');
+        }} 
         onComplete={handleSetupComplete}
       />
     );

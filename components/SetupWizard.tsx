@@ -11,7 +11,7 @@ interface SetupWizardProps {
 }
 
 export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onComplete }) => {
-  const [density, setDensity] = useState(80); // Default higher for better quality
+  const [density, setDensity] = useState(150); // Default higher for better recognition
   const [maxColors, setMaxColors] = useState(32); // Default palette size
   const [loading, setLoading] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
@@ -54,11 +54,18 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
       if (!ctx) return;
 
       const { width, height, palette, grid } = previewProject;
-      // We render the preview at a fixed scale per cell for sharpness, 
-      // but CSS handles the actual display size/aspect ratio.
-      const scale = 5; 
+      // We render the preview at a larger scale per cell for better visibility
+      // Calculate scale to make preview recognizable while maintaining pixel art feel
+      const targetDisplaySize = 600; // Target max dimension for display
+      const maxDimension = Math.max(width, height);
+      const scale = Math.max(3, Math.floor(targetDisplaySize / maxDimension));
+      
       canvasRef.current.width = width * scale;
       canvasRef.current.height = height * scale;
+      
+      // Enable smoothing for better visual quality in preview
+      ctx.imageSmoothingEnabled = false; // Keep pixelated look
+      ctx.imageSmoothingQuality = 'low';
 
       grid.forEach((cell, i) => {
          const col = i % width;
@@ -121,9 +128,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
             </label>
             <input 
               type="range" 
-              min="32" 
-              max="150" 
-              step="2"
+              min="50" 
+              max="300" 
+              step="5"
               value={density} 
               onChange={(e) => setDensity(parseInt(e.target.value))}
               className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
