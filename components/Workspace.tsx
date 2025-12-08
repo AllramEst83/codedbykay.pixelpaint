@@ -163,7 +163,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     // Only show numbers when cells are large enough to be readable (reduce text rendering overhead)
     const cellPixelSize = cellSize * zoom;
     const shouldShowNumbers = cellPixelSize > 16; // Only show text when cells are >16px on screen
-    const shouldShowHighlights = zoom > 0.3;
     
     // First pass: draw all filled cells (batch by color to reduce fillStyle changes)
     const colorBatches = new Map<number, Array<{x: number, y: number}>>();
@@ -191,7 +190,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
           const isTarget = cell.colorIndex === selectedColorIndex;
           const shouldHighlight = isTarget && showHighlight;
 
-          if (shouldHighlight && shouldShowHighlights) {
+          if (shouldHighlight) {
             highlightCells.push({x, y});
           }
 
