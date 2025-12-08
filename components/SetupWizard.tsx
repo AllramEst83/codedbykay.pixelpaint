@@ -3,6 +3,7 @@ import { ArrowLeft, Grid3X3, Wand2, Loader2, Palette } from 'lucide-react';
 import { Button } from './Button';
 import { processImage } from '../services/imageEngine';
 import { ProjectData } from '../types';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface SetupWizardProps {
   imageFile: File;
@@ -11,6 +12,7 @@ interface SetupWizardProps {
 }
 
 export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onComplete }) => {
+  const { theme } = useTheme();
   const [density, setDensity] = useState(150); // Default higher for better recognition
   const [maxColors, setMaxColors] = useState(32); // Default palette size
   const [loading, setLoading] = useState(false);
@@ -67,6 +69,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
       ctx.imageSmoothingEnabled = false; // Keep pixelated look
       ctx.imageSmoothingQuality = 'low';
 
+      // Set background based on theme
+      ctx.fillStyle = theme === 'dark' ? '#1e293b' : '#ffffff'; // Slate-800 : White
+      ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+
       grid.forEach((cell, i) => {
          const col = i % width;
          const row = Math.floor(i / width);
@@ -74,7 +80,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
          ctx.fillRect(col * scale, row * scale, scale, scale);
       });
     }
-  }, [previewProject]);
+  }, [previewProject, theme]);
 
   const handleStart = () => {
     if (previewProject) {
@@ -87,42 +93,42 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
   };
 
   return (
-    <div className="flex flex-col min-h-screen max-w-5xl mx-auto p-4 md:p-6">
+    <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-900 max-w-5xl mx-auto p-4 md:p-6">
       <div className="flex items-center justify-between mb-6 shrink-0">
-        <button onClick={onBack} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-600">
+        <button onClick={onBack} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-600 dark:text-slate-300">
           <ArrowLeft size={24} />
         </button>
-        <h2 className="text-xl font-bold text-slate-800">Customize Puzzle</h2>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">Customize Puzzle</h2>
         <div className="w-10" />
       </div>
 
       <div className="flex-1 flex flex-col md:flex-row gap-6 md:overflow-hidden md:min-h-0">
         {/* Preview Area */}
-        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-4 relative shadow-inner min-h-[300px] md:min-h-0">
+        <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center p-4 relative shadow-inner min-h-[300px] md:min-h-0">
            {loading && (
-             <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center">
-               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+             <div className="absolute inset-0 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm z-10 flex items-center justify-center">
+               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 dark:border-indigo-400"></div>
              </div>
            )}
            
            {previewProject ? (
               <canvas 
                 ref={canvasRef}
-                className="max-w-full max-h-full object-contain shadow-lg bg-white"
+                className="max-w-full max-h-full object-contain shadow-lg bg-white dark:bg-slate-800"
                 style={{
                   aspectRatio: `${previewProject.width} / ${previewProject.height}`
                 }}
               />
            ) : (
-             <div className="text-slate-400">Processing image...</div>
+             <div className="text-slate-400 dark:text-slate-500">Processing image...</div>
            )}
         </div>
 
         {/* Controls */}
-        <div className="md:w-80 flex flex-col gap-6 bg-white p-6 rounded-xl border border-slate-200 shadow-sm shrink-0 md:overflow-y-auto">
+        <div className="md:w-80 flex flex-col gap-6 bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0 md:overflow-y-auto">
           {/* Grid Density */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-4">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">
               <Grid3X3 size={18} />
               Detail Level
             </label>
@@ -133,9 +139,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
               step="5"
               value={density} 
               onChange={(e) => setDensity(parseInt(e.target.value))}
-              className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+              className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600 dark:accent-indigo-500"
             />
-            <div className="flex justify-between text-xs text-slate-500 mt-2">
+            <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-2">
               <span>Blocky</span>
               <span>Detailed</span>
             </div>
@@ -143,7 +149,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
 
           {/* Palette Size */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-4">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">
               <Palette size={18} />
               Palette Size
             </label>
@@ -154,25 +160,25 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
               step="1"
               value={maxColors} 
               onChange={(e) => setMaxColors(parseInt(e.target.value))}
-              className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+              className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600 dark:accent-indigo-500"
             />
-            <div className="flex justify-between text-xs text-slate-500 mt-2">
+            <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-2">
               <span>Simpler</span>
               <span>More Colors</span>
             </div>
-            <div className="text-center text-sm font-medium text-indigo-600 mt-1">
+            <div className="text-center text-sm font-medium text-indigo-600 dark:text-indigo-400 mt-1">
               {maxColors} Colors
             </div>
           </div>
 
-          <div className="space-y-3 pt-4 border-t border-slate-100">
-             <div className="flex justify-between text-sm py-2 border-b border-slate-100">
-               <span className="text-slate-500">Grid Size</span>
-               <span className="font-medium">{previewProject ? `${previewProject.width} x ${previewProject.height}` : '-'}</span>
+          <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+             <div className="flex justify-between text-sm py-2 border-b border-slate-100 dark:border-slate-700">
+               <span className="text-slate-500 dark:text-slate-400">Grid Size</span>
+               <span className="font-medium dark:text-slate-300">{previewProject ? `${previewProject.width} x ${previewProject.height}` : '-'}</span>
              </div>
-             <div className="flex justify-between text-sm py-2 border-b border-slate-100">
-               <span className="text-slate-500">Colors Found</span>
-               <span className="font-medium">{previewProject ? previewProject.palette.length : '-'}</span>
+             <div className="flex justify-between text-sm py-2 border-b border-slate-100 dark:border-slate-700">
+               <span className="text-slate-500 dark:text-slate-400">Colors Found</span>
+               <span className="font-medium dark:text-slate-300">{previewProject ? previewProject.palette.length : '-'}</span>
              </div>
           </div>
           
