@@ -306,18 +306,27 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     };
   }, [draw]);
 
-  // Initial centering
+  // Initial centering - same logic as handleCenter button
   useEffect(() => {
     if (containerRef.current) {
-       const { width, height } = containerRef.current.getBoundingClientRect();
-       const contentWidth = project.width * BASE_CELL_SIZE;
-       const contentHeight = project.height * BASE_CELL_SIZE;
+       const { width: cW, height: cH } = containerRef.current.getBoundingClientRect();
+       const contentW = project.width * BASE_CELL_SIZE;
+       const contentH = project.height * BASE_CELL_SIZE;
        
-       // Center it
-       setPan({
-         x: (width - contentWidth)/2,
-         y: (height - contentHeight)/2
-       });
+       // Calculate scale to fit with some margin (same as handleCenter)
+       const margin = 40;
+       const scaleX = (cW - margin) / contentW;
+       const scaleY = (cH - margin) / contentH;
+       
+       // Fit entire image, clamped to reasonable limits
+       let newZoom = Math.min(scaleX, scaleY);
+       newZoom = Math.max(0.1, Math.min(newZoom, 5)); 
+
+       const newPanX = (cW - contentW * newZoom) / 2;
+       const newPanY = (cH - contentH * newZoom) / 2;
+       
+       setZoom(newZoom);
+       setPan({ x: newPanX, y: newPanY });
        needsRedraw.current = true;
     }
   }, []);
