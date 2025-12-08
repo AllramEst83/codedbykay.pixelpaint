@@ -34,6 +34,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   const zoomRef = useRef(zoom);
   const panRef = useRef(pan);
   
+  // Performance optimization: track if we need to redraw
+  const needsRedraw = useRef(true);
+  const animationFrameId = useRef<number | null>(null);
+  const isAnimating = useRef(false);
+  
   // State for palette scrolling
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -154,7 +159,18 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, totalWidth, totalHeight);
     
-    // Draw only visible cells
+    // Optimize: batch similar operations together
+    // Only show numbers when cells are large enough to be readable (reduce text rendering overhead)
+    const cellPixelSize = cellSize * zoom;
+    const shouldShowNumbers = cellPixelSize > 16; // Only show text when cells are >16px on screen
+    const shouldShowHighlights = zoom > 0.3;
+    
+    // First pass: draw all filled cells (batch by color to reduce fillStyle changes)
+    const colorBatches = new Map<number, Array<{x: number, y: number}>>();
+    const highlightCells: Array<{x: number, y: number}> = [];
+    const borderCells: Array<{x: number, y: number, shouldHighlight: boolean}> = [];
+    const textCells: Array<{x: number, y: number, text: string, shouldHighlight: boolean}> = [];
+    
     for (let row = startRow; row <= endRow; row++) {
       for (let col = startCol; col <= endCol; col++) {
         const i = row * project.width + col;
@@ -165,43 +181,95 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         const cell = grid[i];
 
         if (cell.filled) {
-          ctx.fillStyle = project.palette[cell.colorIndex];
-          ctx.fillRect(x, y, cellSize, cellSize);
+          // Batch filled cells by color
+          if (!colorBatches.has(cell.colorIndex)) {
+            colorBatches.set(cell.colorIndex, []);
+          }
+          colorBatches.get(cell.colorIndex)!.push({x, y});
         } else {
           // Highlight active color targets
           const isTarget = cell.colorIndex === selectedColorIndex;
           const shouldHighlight = isTarget && showHighlight;
 
-          if (shouldHighlight) {
-              // Light highlight to show user where to click
-              ctx.fillStyle = '#e0e7ff'; // Indigo-50-ish
-              ctx.fillRect(x, y, cellSize, cellSize);
+          if (shouldHighlight && shouldShowHighlights) {
+            highlightCells.push({x, y});
           }
 
-          // Draw number if zoomed in enough
-          if (zoom > 0.8) {
-             ctx.lineWidth = 1 / zoom; // Scale border thickness
-             
-             // Highlight border slightly if target
-             ctx.strokeStyle = shouldHighlight ? '#c7d2fe' : '#f1f5f9';
-             ctx.strokeRect(x, y, cellSize, cellSize);
-             
-             // Draw number text
-             // If target, bold and dark blue. If not, grey.
-             ctx.fillStyle = shouldHighlight ? '#4338ca' : '#94a3b8';
-             ctx.font = shouldHighlight ? 'bold 10px sans-serif' : '10px sans-serif';
-             ctx.textAlign = 'center';
-             ctx.textBaseline = 'middle';
-             
-             // Display 1-based index for human friendliness
-             ctx.fillText(`${cell.colorIndex + 1}`, x + cellSize/2, y + cellSize/2);
-          } else if (zoom > 0.3) {
-              // When zoomed out but not super far, just show hint of grid
-             if (shouldHighlight) {
-                 ctx.fillStyle = '#e0e7ff';
-                 ctx.fillRect(x, y, cellSize, cellSize);
-             }
+          // Collect cells that need borders and text
+          if (shouldShowNumbers) {
+            borderCells.push({x, y, shouldHighlight});
+            textCells.push({
+              x, 
+              y, 
+              text: `${cell.colorIndex + 1}`, 
+              shouldHighlight
+            });
           }
+        }
+      }
+    }
+    
+    // Render filled cells batch by color
+    for (const [colorIndex, cells] of colorBatches) {
+      ctx.fillStyle = project.palette[colorIndex];
+      for (const {x, y} of cells) {
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+    
+    // Render highlights
+    if (highlightCells.length > 0) {
+      ctx.fillStyle = '#e0e7ff';
+      for (const {x, y} of highlightCells) {
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+    
+    // Render borders (if zoomed in)
+    if (shouldShowNumbers && borderCells.length > 0) {
+      ctx.lineWidth = 1 / zoom;
+      
+      // Batch borders by style
+      const highlightBorders = borderCells.filter(c => c.shouldHighlight);
+      const normalBorders = borderCells.filter(c => !c.shouldHighlight);
+      
+      if (highlightBorders.length > 0) {
+        ctx.strokeStyle = '#c7d2fe';
+        for (const {x, y} of highlightBorders) {
+          ctx.strokeRect(x, y, cellSize, cellSize);
+        }
+      }
+      
+      if (normalBorders.length > 0) {
+        ctx.strokeStyle = '#f1f5f9';
+        for (const {x, y} of normalBorders) {
+          ctx.strokeRect(x, y, cellSize, cellSize);
+        }
+      }
+    }
+    
+    // Render text (most expensive operation - batch by style)
+    if (shouldShowNumbers && textCells.length > 0) {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // Render highlighted text
+      const highlightTexts = textCells.filter(c => c.shouldHighlight);
+      if (highlightTexts.length > 0) {
+        ctx.fillStyle = '#4338ca';
+        ctx.font = 'bold 10px sans-serif';
+        for (const {x, y, text} of highlightTexts) {
+          ctx.fillText(text, x + cellSize/2, y + cellSize/2);
+        }
+      }
+      
+      // Render normal text
+      const normalTexts = textCells.filter(c => !c.shouldHighlight);
+      if (normalTexts.length > 0) {
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px sans-serif';
+        for (const {x, y, text} of normalTexts) {
+          ctx.fillText(text, x + cellSize/2, y + cellSize/2);
         }
       }
     }
@@ -212,13 +280,31 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     ctx.strokeRect(0, 0, totalWidth, totalHeight);
 
     ctx.restore();
+    
+    needsRedraw.current = false;
 
   }, [grid, project, zoom, pan, selectedColorIndex, showHighlight]);
 
-  // Render Loop
+  // Optimized Render Loop - only redraw when needed
   useEffect(() => {
-    const animationFrame = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animationFrame);
+    needsRedraw.current = true;
+  }, [grid, zoom, pan, selectedColorIndex, showHighlight]);
+  
+  useEffect(() => {
+    const renderLoop = () => {
+      if (needsRedraw.current || isAnimating.current) {
+        draw();
+      }
+      animationFrameId.current = requestAnimationFrame(renderLoop);
+    };
+    
+    animationFrameId.current = requestAnimationFrame(renderLoop);
+    
+    return () => {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+    };
   }, [draw]);
 
   // Initial centering
@@ -233,6 +319,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
          x: (width - contentWidth)/2,
          y: (height - contentHeight)/2
        });
+       needsRedraw.current = true;
     }
   }, []);
 
@@ -308,6 +395,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     e.currentTarget.setPointerCapture(e.pointerId);
 
     setIsDragging(true);
+    isAnimating.current = true; // Start continuous rendering during interaction
     setIsOverHighlightedTile(false); // Reset cursor when starting to drag
     lastPointerPos.current = { x: e.clientX, y: e.clientY };
     
@@ -343,6 +431,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         newZoom = Math.max(0.1, Math.min(newZoom, 5));
         
         setZoom(newZoom);
+        needsRedraw.current = true;
         // Note: We aren't adjusting pan during pinch here for simplicity, 
         // which makes it zoom relative to the origin (top-left) of current view
         // Ideally we would zoom towards the midpoint of p1 and p2.
@@ -355,6 +444,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       const dy = e.clientY - lastPointerPos.current.y;
       
       setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+      needsRedraw.current = true;
       lastPointerPos.current = { x: e.clientX, y: e.clientY };
       
       totalDragDistance.current += Math.abs(dx) + Math.abs(dy);
@@ -386,6 +476,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     // If no pointers left, stop dragging
     if (evCache.current.length === 0) {
       setIsDragging(false);
+      isAnimating.current = false; // Stop continuous rendering
+      needsRedraw.current = true; // One final redraw
 
       // If moved less than threshold pixels total during the press, treat as click
       if (totalDragDistance.current < 15) {
@@ -399,8 +491,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   };
 
   // Zoom controls
-  const zoomIn = () => setZoom(z => Math.min(z * 1.2, 5));
-  const zoomOut = () => setZoom(z => Math.max(z / 1.2, 0.2));
+  const zoomIn = () => {
+    setZoom(z => Math.min(z * 1.2, 5));
+    needsRedraw.current = true;
+  };
+  const zoomOut = () => {
+    setZoom(z => Math.max(z / 1.2, 0.2));
+    needsRedraw.current = true;
+  };
 
   // Mouse wheel zoom handler - attached directly to DOM to allow preventDefault
   useEffect(() => {
@@ -432,6 +530,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
 
       setZoom(newZoom);
       setPan({ x: newPanX, y: newPanY });
+      needsRedraw.current = true;
     };
 
     // Add event listener with passive: false to allow preventDefault
@@ -464,6 +563,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     
     setZoom(newZoom);
     setPan({ x: newPanX, y: newPanY });
+    needsRedraw.current = true;
   };
 
   // Determine progress of current color
