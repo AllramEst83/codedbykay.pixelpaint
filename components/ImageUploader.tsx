@@ -1,13 +1,39 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Upload, Image as ImageIcon } from 'lucide-react';
 
 interface ImageUploaderProps {
   onImageSelected: (file: File) => void;
+  autoOpen?: boolean;
+  onAutoOpenAttempted?: () => void;
 }
 
-export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected }) => {
+export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, autoOpen = false, onAutoOpenAttempted }) => {
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const hasAutoOpened = useRef(false);
+
+  useEffect(() => {
+    if (autoOpen && inputRef.current && !hasAutoOpened.current) {
+      hasAutoOpened.current = true;
+      
+      // Small delay to ensure component is fully mounted
+      setTimeout(() => {
+        inputRef.current?.click();
+        
+        // Wait for dialog to close (when window regains focus)
+        const handleFocus = () => {
+          // Small delay to allow onChange to fire first if file was selected
+          setTimeout(() => {
+            onAutoOpenAttempted?.();
+            hasAutoOpened.current = false; // Reset for next time
+          }, 100);
+          window.removeEventListener('focus', handleFocus);
+        };
+        
+        window.addEventListener('focus', handleFocus);
+      }, 100);
+    }
+  }, [autoOpen, onAutoOpenAttempted]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();

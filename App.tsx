@@ -12,6 +12,7 @@ function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [currentProject, setCurrentProject] = useState<ProjectData | null>(null);
   const [savedProjects, setSavedProjects] = useState<ProjectData[]>([]);
+  const [autoOpenPicker, setAutoOpenPicker] = useState(false);
 
   useEffect(() => {
     if (view === 'HOME') {
@@ -23,6 +24,7 @@ function App() {
   const handleImageSelected = (file: File) => {
     setSelectedFile(file);
     setView('SETUP');
+    setAutoOpenPicker(false); // Reset the flag when a file is selected
   };
 
   // Handler: Setup complete, start workspace
@@ -66,6 +68,7 @@ function App() {
         imageFile={selectedFile} 
         onBack={() => {
           setSelectedFile(null);
+          setAutoOpenPicker(true);
           setView('HOME');
         }} 
         onComplete={handleSetupComplete}
@@ -94,7 +97,11 @@ function App() {
         {/* Action Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-1">
-             <ImageUploader onImageSelected={handleImageSelected} />
+             <ImageUploader 
+               onImageSelected={handleImageSelected} 
+               autoOpen={autoOpenPicker}
+               onAutoOpenAttempted={() => setAutoOpenPicker(false)}
+             />
           </div>
         </div>
 
