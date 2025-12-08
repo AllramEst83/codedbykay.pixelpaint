@@ -423,18 +423,34 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       const curDiff = Math.hypot(dx, dy);
 
       if (prevDiff.current > 0) {
-        // Calculate zoom delta
-        const delta = curDiff - prevDiff.current;
-        const zoomSensitivity = 0.005; // Adjust sensitivity
+        const canvas = canvasRef.current;
+        if (!canvas) return;
         
-        let newZoom = zoom + (delta * zoomSensitivity * zoom);
+        const rect = canvas.getBoundingClientRect();
+        
+        // Calculate the midpoint between the two fingers (pinch center)
+        const pinchCenterX = (p1.clientX + p2.clientX) / 2 - rect.left;
+        const pinchCenterY = (p1.clientY + p2.clientY) / 2 - rect.top;
+        
+        // Calculate zoom factor based on distance change
+        const delta = curDiff - prevDiff.current;
+        const zoomSensitivity = 0.005;
+        const zoomFactor = 1 + (delta * zoomSensitivity);
+        
+        let newZoom = zoom * zoomFactor;
         newZoom = Math.max(0.1, Math.min(newZoom, 5));
         
+        // Calculate the point in world coordinates before zoom
+        const worldX = (pinchCenterX - pan.x) / zoom;
+        const worldY = (pinchCenterY - pan.y) / zoom;
+        
+        // Calculate new pan to keep the pinch center fixed
+        const newPanX = pinchCenterX - worldX * newZoom;
+        const newPanY = pinchCenterY - worldY * newZoom;
+        
         setZoom(newZoom);
+        setPan({ x: newPanX, y: newPanY });
         needsRedraw.current = true;
-        // Note: We aren't adjusting pan during pinch here for simplicity, 
-        // which makes it zoom relative to the origin (top-left) of current view
-        // Ideally we would zoom towards the midpoint of p1 and p2.
       }
       prevDiff.current = curDiff;
     } 
