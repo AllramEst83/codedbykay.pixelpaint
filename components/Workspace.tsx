@@ -852,23 +852,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     return total === 0 ? 100 : Math.round((filled / total) * 100);
   };
 
-  // Reveal address bar by scrolling to top
-  const revealAddressBar = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
-
   return (
     <div className="flex flex-col h-full w-full bg-slate-50 dark:bg-slate-900 relative overflow-hidden">
-      {/* Address Bar Reveal Button */}
-      <button
-        onClick={revealAddressBar}
-        className="address-bar-reveal"
-        title="Tap to reveal address bar"
-        aria-label="Reveal address bar"
-      />
-      
       {/* Top Bar */}
-      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between shadow-sm z-10 shrink-0 safe-area-top">
+      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between shadow-sm z-10 shrink-0">
         <button onClick={onExit} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 text-sm font-medium">
           <ArrowLeft size={18} /> Back
         </button>
@@ -950,7 +937,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       </div>
 
       {/* Bottom Palette */}
-      <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.3)] z-20 safe-area-bottom">
+      <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.3)] z-20">
         <div className="flex items-stretch">
           <button
             onClick={scrollPaletteLeft}

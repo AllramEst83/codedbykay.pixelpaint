@@ -81,21 +81,9 @@ function App() {
     );
   }
 
-  // Reveal address bar by scrolling to top
-  const revealAddressBar = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   // Home View
   return (
     <div className="h-full w-full bg-slate-50 dark:bg-slate-900 p-4 md:p-8 flex flex-col items-center overflow-y-auto">
-      {/* Address Bar Reveal Button */}
-      <button
-        onClick={revealAddressBar}
-        className="address-bar-reveal"
-        title="Tap to reveal address bar"
-        aria-label="Reveal address bar"
-      />
       <div className="max-w-3xl w-full space-y-8">
         
         {/* Theme Toggle */}
