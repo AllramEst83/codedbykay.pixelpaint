@@ -78,8 +78,8 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, a
         flex flex-col items-center justify-center text-center
         transition-all duration-200 ease-in-out
         ${isDragging 
-          ? 'border-indigo-500 bg-indigo-50 scale-[1.02]' 
-          : 'border-slate-300 hover:border-indigo-400 hover:bg-slate-50 bg-white'
+          ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 scale-[1.02]' 
+          : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-slate-50 dark:hover:bg-slate-700 bg-white dark:bg-slate-800'
         }
       `}
     >
@@ -93,15 +93,15 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, a
       
       <div className={`
         p-4 rounded-full mb-4 transition-colors
-        ${isDragging ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600'}
+        ${isDragging ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/30 group-hover:text-indigo-600 dark:group-hover:text-indigo-400'}
       `}>
         <Upload size={32} />
       </div>
       
-      <h3 className="text-lg font-semibold text-slate-900 mb-1">
+      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">
         Upload a Photo
       </h3>
-      <p className="text-sm text-slate-500 max-w-xs mx-auto">
+      <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
         Click to browse or drag and drop an image here.
       </p>
     </div>

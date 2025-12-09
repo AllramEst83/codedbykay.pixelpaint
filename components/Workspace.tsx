@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { ArrowLeft, Check, Minus, Plus, Lightbulb, LightbulbOff, Maximize, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Check, Minus, Plus, Lightbulb, LightbulbOff, Maximize, ChevronLeft, ChevronRight, Moon, Sun } from 'lucide-react';
 import { ProjectData, Cell } from '../types';
 import { saveProject } from '../services/storage';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface WorkspaceProps {
   project: ProjectData;
@@ -9,6 +10,7 @@ interface WorkspaceProps {
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
+  const { theme, toggleTheme } = useTheme();
   // State
   const [grid, setGrid] = useState<Cell[]>(project.grid);
   const [selectedColorIndex, setSelectedColorIndex] = useState<number>(0);
@@ -202,8 +204,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     // Clear
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Background
-    ctx.fillStyle = '#f8fafc'; // Slate-50
+    // Background - adapt to theme
+    ctx.fillStyle = theme === 'dark' ? '#0f172a' : '#f8fafc'; // Slate-900 : Slate-50
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
@@ -241,6 +243,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     const endCol = Math.min(project.width - 1, Math.ceil(viewRight / cellSize));
     const startRow = Math.max(0, Math.floor(viewTop / cellSize));
     const endRow = Math.min(project.height - 1, Math.ceil(viewBottom / cellSize));
+
+    // Draw background for the visible image area - adapt to theme
+    ctx.fillStyle = theme === 'dark' ? '#1e293b' : '#ffffff'; // Slate-800 : White
+    ctx.fillRect(0, 0, totalWidth, totalHeight);
     
     // Adaptive quality: skip expensive operations during fast interactions
     const cellPixelSize = cellSize * zoom;
@@ -284,9 +290,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       }
     }
     
-    // Render highlights
+    // Render highlights - adapt to theme
     if (highlightCells.length > 0) {
-      ctx.fillStyle = '#e0e7ff';
+      ctx.fillStyle = theme === 'dark' ? '#312e81' : '#e0e7ff'; // Indigo-900 : Indigo-100
       for (const {x, y} of highlightCells) {
         ctx.fillRect(x, y, cellSize, cellSize);
       }
@@ -301,14 +307,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       const normalBorders = borderCells.filter(c => !c.shouldHighlight);
       
       if (highlightBorders.length > 0) {
-        ctx.strokeStyle = '#c7d2fe';
+        ctx.strokeStyle = theme === 'dark' ? '#4f46e5' : '#c7d2fe'; // Indigo-600 : Indigo-200
         for (const {x, y} of highlightBorders) {
           ctx.strokeRect(x, y, cellSize, cellSize);
         }
       }
       
       if (normalBorders.length > 0) {
-        ctx.strokeStyle = '#f1f5f9';
+        ctx.strokeStyle = theme === 'dark' ? '#334155' : '#f1f5f9'; // Slate-700 : Slate-100
         for (const {x, y} of normalBorders) {
           ctx.strokeRect(x, y, cellSize, cellSize);
         }
@@ -320,20 +326,20 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      // Render highlighted text
+      // Render highlighted text - adapt to theme
       const highlightTexts = textCells.filter(c => c.shouldHighlight);
       if (highlightTexts.length > 0) {
-        ctx.fillStyle = '#4338ca';
+        ctx.fillStyle = theme === 'dark' ? '#818cf8' : '#4338ca'; // Indigo-400 : Indigo-700
         ctx.font = 'bold 10px sans-serif';
         for (const {x, y, text} of highlightTexts) {
           ctx.fillText(text, x + cellSize/2, y + cellSize/2);
         }
       }
       
-      // Render normal text
+      // Render normal text - adapt to theme
       const normalTexts = textCells.filter(c => !c.shouldHighlight);
       if (normalTexts.length > 0) {
-        ctx.fillStyle = '#94a3b8';
+        ctx.fillStyle = theme === 'dark' ? '#64748b' : '#94a3b8'; // Slate-500 : Slate-400
         ctx.font = '10px sans-serif';
         for (const {x, y, text} of normalTexts) {
           ctx.fillText(text, x + cellSize/2, y + cellSize/2);
@@ -341,8 +347,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       }
     }
     
-    // Draw Border around the whole thing
-    ctx.strokeStyle = '#cbd5e1';
+    // Draw Border around the whole thing - adapt to theme
+    ctx.strokeStyle = theme === 'dark' ? '#475569' : '#cbd5e1'; // Slate-600 : Slate-300
     ctx.lineWidth = 2 / zoom; // Keep border thin visually
     ctx.strokeRect(0, 0, totalWidth, totalHeight);
 
@@ -350,7 +356,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     
     needsRedraw.current = false;
 
-  }, [grid, project, zoom, pan, selectedColorIndex, showHighlight, buildFilledCellsCache]);
+  }, [grid, project, zoom, pan, selectedColorIndex, showHighlight, theme, buildFilledCellsCache]);
   
   // Invalidate cache when grid changes
   useEffect(() => {
@@ -360,7 +366,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   // Optimized Render Loop - only redraw when needed
   useEffect(() => {
     needsRedraw.current = true;
-  }, [grid, zoom, pan, selectedColorIndex, showHighlight]);
+  }, [grid, zoom, pan, selectedColorIndex, showHighlight, theme]);
   
   useEffect(() => {
     const renderLoop = () => {
@@ -685,20 +691,27 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden">
+    <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-900 relative overflow-hidden">
       {/* Top Bar */}
-      <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm z-10 shrink-0">
-        <button onClick={onExit} className="text-slate-500 hover:text-slate-800 flex items-center gap-1 text-sm font-medium">
+      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between shadow-sm z-10 shrink-0">
+        <button onClick={onExit} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 text-sm font-medium">
           <ArrowLeft size={18} /> Back
         </button>
         <div className="flex flex-col items-center">
-           <h1 className="font-bold text-slate-800 text-sm md:text-base">Pixel Art</h1>
-           <div className="text-xs text-slate-500">{completedPercent}% Complete</div>
+           <h1 className="font-bold text-slate-800 dark:text-slate-200 text-sm md:text-base">Pixel Art</h1>
+           <div className="text-xs text-slate-500 dark:text-slate-400">{completedPercent}% Complete</div>
         </div>
-        <div className="w-16 flex justify-end">
+        <div className="w-32 flex justify-end gap-2">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-full transition-colors text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+              title={theme === 'dark' ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
             <button 
               onClick={() => setShowHighlight(!showHighlight)}
-              className={`p-2 rounded-full transition-colors ${showHighlight ? 'bg-yellow-100 text-yellow-600' : 'text-slate-400 hover:bg-slate-100'}`}
+              className={`p-2 rounded-full transition-colors ${showHighlight ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-500' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
               title={showHighlight ? "Hide hints" : "Show hints"}
             >
               {showHighlight ? <Lightbulb size={20} className="fill-current" /> : <LightbulbOff size={20} />}
@@ -709,7 +722,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       {/* Main Canvas Area */}
       <div 
         ref={containerRef} 
-        className="flex-1 overflow-hidden relative touch-none bg-slate-100"
+        className="flex-1 overflow-hidden relative touch-none bg-slate-100 dark:bg-slate-900"
       >
         <canvas
           ref={canvasRef}
@@ -730,30 +743,30 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         />
         
         {/* Floating Zoom Controls */}
-        <div className="absolute top-4 right-4 flex flex-col gap-2 bg-white rounded-lg shadow-md border border-slate-200 p-1">
-          <button onClick={zoomIn} className="p-2 text-slate-600 hover:bg-slate-100 rounded" title="Zoom In">
+        <div className="absolute top-4 right-4 flex flex-col gap-2 bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-1">
+          <button onClick={zoomIn} className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded" title="Zoom In">
             <Plus size={20} />
           </button>
-          <button onClick={handleCenter} className="p-2 text-slate-600 hover:bg-slate-100 rounded" title="Fit to Screen">
+          <button onClick={handleCenter} className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded" title="Fit to Screen">
             <Maximize size={20} />
           </button>
-          <button onClick={zoomOut} className="p-2 text-slate-600 hover:bg-slate-100 rounded" title="Zoom Out">
+          <button onClick={zoomOut} className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded" title="Zoom Out">
             <Minus size={20} />
           </button>
         </div>
       </div>
 
       {/* Bottom Palette */}
-      <div className="bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 pb-safe">
+      <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.3)] z-20 pb-safe">
         <div className="flex items-stretch">
           {/* Left scroll button - hidden on mobile, visible on desktop */}
           <button
             onClick={scrollPaletteLeft}
             disabled={!canScrollLeft}
-            className="hidden md:flex items-center justify-center w-12 bg-white hover:bg-slate-50 border-r border-slate-200 transition-colors shrink-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
+            className="hidden md:flex items-center justify-center w-12 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-r border-slate-200 dark:border-slate-700 transition-colors shrink-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-slate-800"
             aria-label="Scroll palette left"
           >
-            <ChevronLeft size={20} className="text-slate-600" />
+            <ChevronLeft size={20} className="text-slate-600 dark:text-slate-300" />
           </button>
           
           <div 
@@ -776,8 +789,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
                   w-14 h-20 rounded-2xl transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] snap-start
                   border-2
                   ${isSelected 
-                    ? 'bg-indigo-50 border-indigo-600 shadow-lg -translate-y-2' 
-                    : 'bg-transparent border-transparent hover:bg-slate-50'
+                    ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-600 dark:border-indigo-500 shadow-lg -translate-y-2' 
+                    : 'bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-700'
                   }
                   ${isComplete ? 'opacity-60 grayscale-[0.3]' : ''}
                 `}
@@ -791,14 +804,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
                 </div>
                 
                 {/* Number */}
-                <span className={`text-xs font-bold transition-colors ${isSelected ? 'text-indigo-700' : 'text-slate-500'}`}>
+                <span className={`text-xs font-bold transition-colors ${isSelected ? 'text-indigo-700 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`}>
                   {idx + 1}
                 </span>
 
                 {/* Progress bar under button */}
-                <div className="absolute bottom-2 w-8 h-1 bg-slate-200 rounded-full overflow-hidden">
+                <div className="absolute bottom-2 w-8 h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                    <div 
-                     className="h-full bg-green-500 transition-all duration-500 ease-out"
+                     className="h-full bg-green-500 dark:bg-green-600 transition-all duration-500 ease-out"
                      style={{ width: `${progress}%` }}
                    />
                 </div>
@@ -811,10 +824,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
           <button
             onClick={scrollPaletteRight}
             disabled={!canScrollRight}
-            className="hidden md:flex items-center justify-center w-12 bg-white hover:bg-slate-50 border-l border-slate-200 transition-colors shrink-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
+            className="hidden md:flex items-center justify-center w-12 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-l border-slate-200 dark:border-slate-700 transition-colors shrink-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-slate-800"
             aria-label="Scroll palette right"
           >
-            <ChevronRight size={20} className="text-slate-600" />
+            <ChevronRight size={20} className="text-slate-600 dark:text-slate-300" />
           </button>
         </div>
       </div>
