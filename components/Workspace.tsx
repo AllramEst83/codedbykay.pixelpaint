@@ -73,8 +73,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   const evCache = useRef<React.PointerEvent[]>([]);
   const prevDiff = useRef<number>(-1);
   const lastPointerPos = useRef({ x: 0, y: 0 });
+  const lastTwoFingerPos = useRef({ x: 0, y: 0 });
   const totalDragDistance = useRef(0);
   const isDraggingRef = useRef(false);
+  const isRightMouseButtonRef = useRef(false);
+  const lastPaintedCellRef = useRef<{ col: number; row: number } | null>(null);
   
   // Animation frame ref
   const rafIdRef = useRef<number | null>(null);
@@ -686,7 +689,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     // Only update DOM if changed
     if (isHighlighted !== isOverHighlightedTileRef.current) {
       isOverHighlightedTileRef.current = isHighlighted;
-      container.style.cursor = isHighlighted ? 'pointer' : 'move';
+      container.style.cursor = isHighlighted ? 'pointer' : 'crosshair';
     }
   }, [screenToGrid]);
 
@@ -727,19 +730,55 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     }
   }, [screenToGrid, immediatelyDrawFilledCell]);
 
+  // Handle painting a cell (used during drag)
+  const handlePaintCell = useCallback((clientX: number, clientY: number) => {
+    const result = screenToGrid(clientX, clientY);
+    if (result) {
+      // Avoid painting the same cell multiple times during drag
+      if (lastPaintedCellRef.current && 
+          lastPaintedCellRef.current.col === result.col && 
+          lastPaintedCellRef.current.row === result.row) {
+        return;
+      }
+      
+      const cell = gridRef.current[result.index];
+      if (!cell.filled && cell.colorIndex === selectedColorIndexRef.current) {
+        // Immediately draw the filled cell for instant visual feedback
+        immediatelyDrawFilledCell(result.col, result.row, cell.colorIndex);
+        
+        // Mark highlight as dirty to remove the highlight from this cell
+        dirtyFlags.current.highlight = true;
+        dirtyFlags.current.text = true;
+        
+        // Update React state (for persistence and completion tracking)
+        setGrid(prev => {
+          const newGrid = [...prev];
+          newGrid[result.index] = { ...cell, filled: true };
+          return newGrid;
+        });
+        
+        lastPaintedCellRef.current = { col: result.col, row: result.row };
+      }
+    }
+  }, [screenToGrid, immediatelyDrawFilledCell]);
+
   // Pointer handlers
   const handlePointerDown = (e: React.PointerEvent) => {
     evCache.current.push(e);
     e.currentTarget.setPointerCapture(e.pointerId);
     isDraggingRef.current = true;
     
+    // Check if right mouse button
+    isRightMouseButtonRef.current = e.button === 2;
+    
     // Reset cursor directly
     isOverHighlightedTileRef.current = false;
     if (pixiContainerRef.current) {
-      pixiContainerRef.current.style.cursor = 'move';
+      pixiContainerRef.current.style.cursor = isRightMouseButtonRef.current ? 'move' : 'crosshair';
     }
     
     lastPointerPos.current = { x: e.clientX, y: e.clientY };
+    lastPaintedCellRef.current = null;
     
     if (evCache.current.length === 1) {
       totalDragDistance.current = 0;
@@ -752,7 +791,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       evCache.current[index] = e;
     }
 
-    // Pinch zoom
+    // Two finger gestures
     if (evCache.current.length === 2) {
       const p1 = evCache.current[0];
       const p2 = evCache.current[1];
@@ -760,14 +799,29 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       const dx = p1.clientX - p2.clientX;
       const dy = p1.clientY - p2.clientY;
       const curDiff = Math.hypot(dx, dy);
-
-      if (prevDiff.current > 0) {
+      const avgX = (p1.clientX + p2.clientX) / 2;
+      const avgY = (p1.clientY + p2.clientY) / 2;
+      
+      // Initialize lastTwoFingerPos if this is the first move with two fingers
+      if (lastTwoFingerPos.current.x === 0 && lastTwoFingerPos.current.y === 0) {
+        lastTwoFingerPos.current = { x: avgX, y: avgY };
+        prevDiff.current = curDiff;
+        return;
+      }
+      
+      // Check if this is a pinch gesture (distance changing significantly)
+      // vs a pan gesture (distance relatively stable)
+      const distanceChange = prevDiff.current > 0 ? Math.abs(curDiff - prevDiff.current) : 0;
+      const isPinchGesture = distanceChange > 5; // Threshold for pinch detection
+      
+      if (isPinchGesture && prevDiff.current > 0) {
+        // Pinch zoom
         const container = pixiContainerRef.current;
         if (!container) return;
         
         const rect = container.getBoundingClientRect();
-        const pinchCenterX = (p1.clientX + p2.clientX) / 2 - rect.left;
-        const pinchCenterY = (p1.clientY + p2.clientY) / 2 - rect.top;
+        const pinchCenterX = avgX - rect.left;
+        const pinchCenterY = avgY - rect.top;
         
         const delta = curDiff - prevDiff.current;
         const zoomFactor = 1 + (delta * 0.005);
@@ -786,23 +840,44 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         
         dirtyFlags.current.text = true;
         dirtyFlags.current.transform = true;
+      } else {
+        // Two finger pan (navigate)
+        const panDx = avgX - lastTwoFingerPos.current.x;
+        const panDy = avgY - lastTwoFingerPos.current.y;
+        
+        panRef.current = {
+          x: panRef.current.x + panDx,
+          y: panRef.current.y + panDy
+        };
+        
+        dirtyFlags.current.text = true;
       }
+      
+      lastTwoFingerPos.current = { x: avgX, y: avgY };
       prevDiff.current = curDiff;
     }
-    // Pan
+    // Single finger: paint cells (or pan if right mouse button)
     else if (evCache.current.length === 1 && isDraggingRef.current) {
-      const dx = e.clientX - lastPointerPos.current.x;
-      const dy = e.clientY - lastPointerPos.current.y;
-      
-      panRef.current = {
-        x: panRef.current.x + dx,
-        y: panRef.current.y + dy
-      };
-      
-      lastPointerPos.current = { x: e.clientX, y: e.clientY };
-      totalDragDistance.current += Math.abs(dx) + Math.abs(dy);
-      
-      dirtyFlags.current.text = true;
+      if (isRightMouseButtonRef.current) {
+        // Right mouse button: pan
+        const dx = e.clientX - lastPointerPos.current.x;
+        const dy = e.clientY - lastPointerPos.current.y;
+        
+        panRef.current = {
+          x: panRef.current.x + dx,
+          y: panRef.current.y + dy
+        };
+        
+        lastPointerPos.current = { x: e.clientX, y: e.clientY };
+        totalDragDistance.current += Math.abs(dx) + Math.abs(dy);
+        
+        dirtyFlags.current.text = true;
+      } else {
+        // Left mouse button / touch: paint cells
+        handlePaintCell(e.clientX, e.clientY);
+        lastPointerPos.current = { x: e.clientX, y: e.clientY };
+        totalDragDistance.current += 1; // Small increment to prevent tap detection
+      }
     }
   };
 
@@ -810,6 +885,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     if (!isDraggingRef.current && evCache.current.length === 0) {
       checkIfOverHighlightedTile(e.clientX, e.clientY);
     }
+  };
+
+  // Handle context menu to prevent it on right-click
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -822,14 +902,22 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
 
     if (evCache.current.length < 2) {
       prevDiff.current = -1;
+      lastTwoFingerPos.current = { x: 0, y: 0 };
     }
     
     if (evCache.current.length === 0) {
+      const wasRightMouse = isRightMouseButtonRef.current;
       isDraggingRef.current = false;
+      isRightMouseButtonRef.current = false;
+      lastPaintedCellRef.current = null;
 
-      if (totalDragDistance.current < 15) {
+      // Only handle tap if it wasn't a drag and wasn't right mouse button
+      if (totalDragDistance.current < 15 && !wasRightMouse) {
         handleTap(e.clientX, e.clientY);
       }
+      
+      // Reset last pointer position
+      lastPointerPos.current = { x: 0, y: 0 };
     } else if (evCache.current.length === 1) {
       lastPointerPos.current = { x: evCache.current[0].clientX, y: evCache.current[0].clientY };
     }
@@ -970,23 +1058,24 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         
         <div
           ref={pixiContainerRef}
-          className="absolute inset-0 touch-none cursor-move"
+          className="absolute inset-0 touch-none cursor-crosshair"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerLeave={(e) => {
             // Reset cursor directly
             if (pixiContainerRef.current) {
-              pixiContainerRef.current.style.cursor = 'move';
+              pixiContainerRef.current.style.cursor = 'crosshair';
             }
             isOverHighlightedTileRef.current = false;
             handlePointerUp(e);
           }}
           onPointerCancel={handlePointerUp}
           onMouseMove={handleMouseMove}
+          onContextMenu={handleContextMenu}
           onMouseLeave={() => {
             if (pixiContainerRef.current) {
-              pixiContainerRef.current.style.cursor = 'move';
+              pixiContainerRef.current.style.cursor = 'crosshair';
             }
             isOverHighlightedTileRef.current = false;
           }}
