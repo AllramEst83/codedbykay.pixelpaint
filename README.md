@@ -7,9 +7,14 @@ Turn your favorite memories into relaxing color-by-number pixel art puzzles. Upl
 - **Image Upload**: Upload any image and convert it to a color-by-number puzzle
 - **Customizable Setup**: Configure grid size and color palette during setup
 - **Interactive Workspace**:
-  - Zoom and pan for detailed work
-  - Color palette selection
-  - Progress tracking with completion percentage
+  - **Flexible Coloring System**: Apply any color to any cell - incorrect colors appear transparent so numbers remain visible
+  - **Smart Painting**: Painting strokes can only start on cells matching the selected color number, but can continue across any cells
+  - **Intuitive Navigation**: 
+    - Start dragging on a matching cell to paint
+    - Start dragging elsewhere to pan the canvas
+    - Two-finger pinch or mouse scroll wheel to zoom
+  - Color palette selection with progress tracking per color
+  - Overall completion percentage (only correctly colored cells count)
   - Highlight mode to show which cells match your selected color
 - **Local Storage**: All projects are saved locally in your browser - your images never leave your device
 - **Project Management**: View, resume, and delete your saved puzzles
@@ -67,7 +72,8 @@ npm run preview
 - **Vite** - Build tool and dev server
 - **Tailwind CSS** - Styling
 - **Lucide React** - Icons
-- **Canvas API** - Image processing and rendering
+- **PixiJS v8** - High-performance canvas rendering with WebGL
+- **Canvas API** - Image processing and color quantization
 
 ## 📁 Project Structure
 
@@ -100,8 +106,16 @@ This project is private and proprietary.
 1. **Upload**: Select an image from your device
 2. **Setup**: Configure the grid size and color palette
 3. **Process**: The app analyzes your image and creates a color-by-number grid
-4. **Paint**: Use the interactive workspace to fill in cells by matching colors
-5. **Save**: Your progress is automatically saved locally
+4. **Paint**: Use the interactive workspace to fill in cells
+   - Tap any cell to apply the selected color
+   - Start dragging on a cell with the matching number to paint multiple cells
+   - Correctly colored cells appear opaque, incorrect ones appear transparent
+   - You can paint over incorrect colors with any other color to correct mistakes
+5. **Navigate**: 
+   - Drag on non-matching cells or empty space to pan around the canvas
+   - Use two-finger pinch or mouse wheel to zoom in/out
+   - Cursor changes to crosshair over paintable cells, grab cursor elsewhere
+6. **Save**: Your progress is automatically saved locally
 
 ---
 

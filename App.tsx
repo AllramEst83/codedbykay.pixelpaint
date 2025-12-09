@@ -130,7 +130,9 @@ function App() {
             <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 px-1">Your Works in Progress</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {savedProjects.map(project => {
-                const percent = Math.round((project.grid.filter(c => c.filled).length / project.grid.length) * 100);
+                // Only count correctly filled cells
+                const correctlyFilled = project.grid.filter(c => c.filled && c.filledColorIndex === c.colorIndex).length;
+                const percent = Math.round((correctlyFilled / project.grid.length) * 100);
                 const isCompleted = project.completed === true || percent === 100;
                 
                 return (

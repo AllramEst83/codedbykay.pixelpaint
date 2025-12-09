@@ -19,8 +19,18 @@ const MAX_ZOOM = 5;
 export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   const { theme, toggleTheme } = useTheme();
   
+  // Migrate old projects: if cells are filled but don't have filledColorIndex, set it to colorIndex
+  const migratedGrid = useMemo(() => {
+    return project.grid.map(cell => {
+      if (cell.filled && cell.filledColorIndex === undefined) {
+        return { ...cell, filledColorIndex: cell.colorIndex };
+      }
+      return cell;
+    });
+  }, [project.grid]);
+  
   // State - minimal state, use refs for frequently changing values
-  const [grid, setGrid] = useState<Cell[]>(project.grid);
+  const [grid, setGrid] = useState<Cell[]>(migratedGrid);
   const [selectedColorIndex, setSelectedColorIndex] = useState<number>(0);
   const [completedPercent, setCompletedPercent] = useState(0);
   const [showHighlight, setShowHighlight] = useState(true);
@@ -75,6 +85,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   const lastPointerPos = useRef({ x: 0, y: 0 });
   const totalDragDistance = useRef(0);
   const isDraggingRef = useRef(false);
+  const isPaintModeRef = useRef(false); // Track if we're in paint mode vs pan mode
+  const paintedCellsInStroke = useRef<Set<number>>(new Set()); // Track cells painted in current stroke
   
   // Animation frame ref
   const rafIdRef = useRef<number | null>(null);
@@ -298,29 +310,46 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       if (dirtyFlags.current.filled) {
         filledGraphics.clear();
         
-        const filledByColor = new Map<number, Array<{x: number, y: number}>>();
+        // Separate cells by correct and incorrect fills
+        const correctFillsByColor = new Map<number, Array<{x: number, y: number}>>();
+        const incorrectFills: Array<{x: number, y: number, colorIndex: number}> = [];
         
         for (let i = 0; i < grid.length; i++) {
           const cell = grid[i];
-          if (cell.filled) {
+          if (cell.filled && cell.filledColorIndex !== undefined) {
             const col = i % project.width;
             const row = Math.floor(i / project.width);
-            if (!filledByColor.has(cell.colorIndex)) {
-              filledByColor.set(cell.colorIndex, []);
+            const x = col * cellSize;
+            const y = row * cellSize;
+            
+            // Check if the filled color matches the correct color
+            if (cell.filledColorIndex === cell.colorIndex) {
+              // Correct fill - opaque
+              if (!correctFillsByColor.has(cell.filledColorIndex)) {
+                correctFillsByColor.set(cell.filledColorIndex, []);
+              }
+              correctFillsByColor.get(cell.filledColorIndex)!.push({ x, y });
+            } else {
+              // Incorrect fill - will be drawn transparent
+              incorrectFills.push({ x, y, colorIndex: cell.filledColorIndex });
             }
-            filledByColor.get(cell.colorIndex)!.push({ 
-              x: col * cellSize, 
-              y: row * cellSize 
-            });
           }
         }
         
-        for (const [colorIndex, cells] of filledByColor) {
+        // Draw correct fills (opaque)
+        for (const [colorIndex, cells] of correctFillsByColor) {
           const colorHex = parseInt(project.palette[colorIndex].replace('#', ''), 16);
           for (const { x, y } of cells) {
             filledGraphics.rect(x, y, cellSize, cellSize);
           }
           filledGraphics.fill(colorHex);
+        }
+        
+        // Draw incorrect fills (transparent)
+        for (const { x, y, colorIndex } of incorrectFills) {
+          const colorHex = parseInt(project.palette[colorIndex].replace('#', ''), 16);
+          filledGraphics.rect(x, y, cellSize, cellSize);
+          filledGraphics.fill({ color: colorHex, alpha: 0.2 });
         }
         
         dirtyFlags.current.filled = false;
@@ -539,12 +568,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
 
   // Calculate completion
   useEffect(() => {
-    const filled = grid.filter(c => c.filled).length;
+    // Only count cells that are correctly filled
+    const filled = grid.filter(c => c.filled && c.filledColorIndex === c.colorIndex).length;
     const total = grid.length;
     const percent = Math.round((filled / total) * 100);
     setCompletedPercent(percent);
     
-    // Check if puzzle is completed (100% filled)
+    // Check if puzzle is completed (100% correctly filled)
     const isCompleted = filled === total && total > 0;
     const wasCompleted = project.completed === true;
     
@@ -670,60 +700,68 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     return null;
   }, [project.width, project.height]);
 
-  // Check if over highlighted tile - directly manipulate DOM cursor (no React re-render)
-  const checkIfOverHighlightedTile = useCallback((clientX: number, clientY: number) => {
+  // Check if over matching cell - directly manipulate DOM cursor (no React re-render)
+  const checkIfOverMatchingCell = useCallback((clientX: number, clientY: number) => {
     const container = pixiContainerRef.current;
     if (!container) return;
     
     const result = screenToGrid(clientX, clientY);
-    let isHighlighted = false;
+    let isMatching = false;
     
     if (result) {
       const cell = gridRef.current[result.index];
-      isHighlighted = !cell.filled && cell.colorIndex === selectedColorIndexRef.current && showHighlightRef.current;
+      // Check if this cell matches the selected color (can start painting here)
+      isMatching = cell.colorIndex === selectedColorIndexRef.current;
     }
     
     // Only update DOM if changed
-    if (isHighlighted !== isOverHighlightedTileRef.current) {
-      isOverHighlightedTileRef.current = isHighlighted;
-      container.style.cursor = isHighlighted ? 'pointer' : 'move';
+    if (isMatching !== isOverHighlightedTileRef.current) {
+      isOverHighlightedTileRef.current = isMatching;
+      container.style.cursor = isMatching ? 'crosshair' : 'grab';
     }
   }, [screenToGrid]);
 
   // Immediately draw a filled cell to PixiJS (instant visual feedback)
-  const immediatelyDrawFilledCell = useCallback((col: number, row: number, colorIndex: number) => {
+  const immediatelyDrawFilledCell = useCallback((col: number, row: number, filledColorIndex: number, correctColorIndex: number) => {
     const filledGraphics = filledGraphicsRef.current;
     if (!filledGraphics) return;
     
     const x = col * BASE_CELL_SIZE;
     const y = row * BASE_CELL_SIZE;
-    const colorHex = parseInt(project.palette[colorIndex].replace('#', ''), 16);
+    const colorHex = parseInt(project.palette[filledColorIndex].replace('#', ''), 16);
     
     // Draw immediately without clearing
+    // If filled color matches correct color, draw opaque; otherwise transparent
+    const isCorrect = filledColorIndex === correctColorIndex;
     filledGraphics.rect(x, y, BASE_CELL_SIZE, BASE_CELL_SIZE);
-    filledGraphics.fill(colorHex);
+    filledGraphics.fill(isCorrect ? colorHex : { color: colorHex, alpha: 0.2 });
   }, [project.palette]);
 
-  // Handle tap/click
+  // Handle tap/click - applies selected color to any single cell
   const handleTap = useCallback((clientX: number, clientY: number) => {
     const result = screenToGrid(clientX, clientY);
     if (result) {
       const cell = gridRef.current[result.index];
-      if (!cell.filled && cell.colorIndex === selectedColorIndexRef.current) {
-        // Immediately draw the filled cell for instant visual feedback
-        immediatelyDrawFilledCell(result.col, result.row, cell.colorIndex);
-        
-        // Mark highlight as dirty to remove the highlight from this cell
-        dirtyFlags.current.highlight = true;
-        dirtyFlags.current.text = true;
-        
-        // Update React state (for persistence and completion tracking)
-        setGrid(prev => {
-          const newGrid = [...prev];
-          newGrid[result.index] = { ...cell, filled: true };
-          return newGrid;
-        });
-      }
+      const selectedColor = selectedColorIndexRef.current;
+      
+      // Apply color to any unfilled cell OR replace existing fill
+      // Immediately draw the filled cell for instant visual feedback
+      immediatelyDrawFilledCell(result.col, result.row, selectedColor, cell.colorIndex);
+      
+      // Mark dirty flags
+      dirtyFlags.current.highlight = true;
+      dirtyFlags.current.text = true;
+      
+      // Update React state (for persistence and completion tracking)
+      setGrid(prev => {
+        const newGrid = [...prev];
+        newGrid[result.index] = { 
+          ...cell, 
+          filled: true, 
+          filledColorIndex: selectedColor 
+        };
+        return newGrid;
+      });
     }
   }, [screenToGrid, immediatelyDrawFilledCell]);
 
@@ -733,16 +771,36 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     isDraggingRef.current = true;
     
-    // Reset cursor directly
-    isOverHighlightedTileRef.current = false;
-    if (pixiContainerRef.current) {
-      pixiContainerRef.current.style.cursor = 'move';
-    }
-    
     lastPointerPos.current = { x: e.clientX, y: e.clientY };
     
     if (evCache.current.length === 1) {
       totalDragDistance.current = 0;
+      paintedCellsInStroke.current.clear();
+      
+      // Determine if we're starting in paint mode or pan mode
+      const result = screenToGrid(e.clientX, e.clientY);
+      if (result) {
+        const cell = gridRef.current[result.index];
+        // Enter paint mode if starting on a cell matching the selected color
+        if (cell.colorIndex === selectedColorIndexRef.current) {
+          isPaintModeRef.current = true;
+          if (pixiContainerRef.current) {
+            pixiContainerRef.current.style.cursor = 'crosshair';
+          }
+        } else {
+          // Starting on non-matching cell - enter pan mode
+          isPaintModeRef.current = false;
+          if (pixiContainerRef.current) {
+            pixiContainerRef.current.style.cursor = 'grabbing';
+          }
+        }
+      } else {
+        // Starting outside grid - pan mode
+        isPaintModeRef.current = false;
+        if (pixiContainerRef.current) {
+          pixiContainerRef.current.style.cursor = 'grabbing';
+        }
+      }
     }
   };
 
@@ -752,7 +810,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       evCache.current[index] = e;
     }
 
-    // Pinch zoom
+    // Pinch zoom (two fingers)
     if (evCache.current.length === 2) {
       const p1 = evCache.current[0];
       const p2 = evCache.current[1];
@@ -789,26 +847,54 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       }
       prevDiff.current = curDiff;
     }
-    // Pan
+    // One finger drag
     else if (evCache.current.length === 1 && isDraggingRef.current) {
       const dx = e.clientX - lastPointerPos.current.x;
       const dy = e.clientY - lastPointerPos.current.y;
       
-      panRef.current = {
-        x: panRef.current.x + dx,
-        y: panRef.current.y + dy
-      };
-      
-      lastPointerPos.current = { x: e.clientX, y: e.clientY };
       totalDragDistance.current += Math.abs(dx) + Math.abs(dy);
       
-      dirtyFlags.current.text = true;
+      if (isPaintModeRef.current) {
+        // Paint mode - paint cells as we drag
+        const result = screenToGrid(e.clientX, e.clientY);
+        if (result && !paintedCellsInStroke.current.has(result.index)) {
+          const cell = gridRef.current[result.index];
+          const selectedColor = selectedColorIndexRef.current;
+          
+          // Paint the cell
+          paintedCellsInStroke.current.add(result.index);
+          immediatelyDrawFilledCell(result.col, result.row, selectedColor, cell.colorIndex);
+          
+          dirtyFlags.current.highlight = true;
+          dirtyFlags.current.text = true;
+          
+          // Update grid state
+          setGrid(prev => {
+            const newGrid = [...prev];
+            newGrid[result.index] = { 
+              ...cell, 
+              filled: true, 
+              filledColorIndex: selectedColor 
+            };
+            return newGrid;
+          });
+        }
+      } else {
+        // Pan mode - move the canvas
+        panRef.current = {
+          x: panRef.current.x + dx,
+          y: panRef.current.y + dy
+        };
+        dirtyFlags.current.text = true;
+      }
+      
+      lastPointerPos.current = { x: e.clientX, y: e.clientY };
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDraggingRef.current && evCache.current.length === 0) {
-      checkIfOverHighlightedTile(e.clientX, e.clientY);
+      checkIfOverMatchingCell(e.clientX, e.clientY);
     }
   };
 
@@ -825,11 +911,22 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     }
     
     if (evCache.current.length === 0) {
+      const wasPaintMode = isPaintModeRef.current;
       isDraggingRef.current = false;
+      isPaintModeRef.current = false;
+      
+      // Reset cursor
+      if (pixiContainerRef.current) {
+        pixiContainerRef.current.style.cursor = 'move';
+      }
 
+      // If it was a tap (not a drag), apply color to single cell
       if (totalDragDistance.current < 15) {
         handleTap(e.clientX, e.clientY);
       }
+      
+      // Clear painted cells tracking
+      paintedCellsInStroke.current.clear();
     } else if (evCache.current.length === 1) {
       lastPointerPos.current = { x: evCache.current[0].clientX, y: evCache.current[0].clientY };
     }
@@ -919,7 +1016,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
 
   const getColorProgress = (idx: number) => {
     const total = project.grid.filter(c => c.colorIndex === idx).length;
-    const filled = project.grid.filter(c => c.colorIndex === idx && c.filled).length;
+    // Only count as filled if the filled color matches the correct color
+    const filled = project.grid.filter(c => c.colorIndex === idx && c.filled && c.filledColorIndex === idx).length;
     return total === 0 ? 100 : Math.round((filled / total) * 100);
   };
 
@@ -970,14 +1068,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         
         <div
           ref={pixiContainerRef}
-          className="absolute inset-0 touch-none cursor-move"
+          className="absolute inset-0 touch-none cursor-grab"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerLeave={(e) => {
             // Reset cursor directly
             if (pixiContainerRef.current) {
-              pixiContainerRef.current.style.cursor = 'move';
+              pixiContainerRef.current.style.cursor = 'grab';
             }
             isOverHighlightedTileRef.current = false;
             handlePointerUp(e);
@@ -986,7 +1084,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
           onMouseMove={handleMouseMove}
           onMouseLeave={() => {
             if (pixiContainerRef.current) {
-              pixiContainerRef.current.style.cursor = 'move';
+              pixiContainerRef.current.style.cursor = 'grab';
             }
             isOverHighlightedTileRef.current = false;
           }}
