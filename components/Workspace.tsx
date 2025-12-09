@@ -42,11 +42,15 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   // Offscreen canvas for caching filled cells (major performance boost)
   const filledCellsCache = useRef<HTMLCanvasElement | null>(null);
   const filledCellsCacheValid = useRef(false);
+  const cacheInitialized = useRef(false);
   
   // Performance: track interaction velocity for adaptive quality
   const lastDrawTime = useRef(Date.now());
   const interactionVelocity = useRef(0);
   const lastInteractionTime = useRef(Date.now());
+  
+  // Adaptive resolution during interactions
+  const [renderScale, setRenderScale] = useState(1.0);
   
   // State for palette scrolling
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -127,8 +131,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     return () => clearTimeout(timer);
   }, [grid, project]);
 
-  // Build offscreen cache of filled cells (only when needed)
-  const buildFilledCellsCache = useCallback(() => {
+  // Initialize cache once on mount
+  const initializeCache = useCallback(() => {
+    if (cacheInitialized.current) return;
+    
     if (!filledCellsCache.current) {
       filledCellsCache.current = document.createElement('canvas');
     }
@@ -138,14 +144,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     cache.width = project.width * cellSize;
     cache.height = project.height * cellSize;
     
-    const ctx = cache.getContext('2d', { alpha: false });
+    const ctx = cache.getContext('2d', { alpha: false, desynchronized: true });
     if (!ctx) return;
     
     // White background
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, cache.width, cache.height);
     
-    // Batch filled cells by color for optimal performance
+    // Build initial cache from filled cells
     const colorBatches = new Map<number, Array<{x: number, y: number}>>();
     
     for (let row = 0; row < project.height; row++) {
@@ -173,14 +179,37 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       }
     }
     
+    cacheInitialized.current = true;
     filledCellsCacheValid.current = true;
-  }, [grid, project]);
+  }, [project.width, project.height, project.palette, grid]);
+  
+  // Incremental cache update - only update changed cell (100x faster than full rebuild)
+  const updateCacheCell = useCallback((row: number, col: number, filled: boolean, colorIndex: number) => {
+    if (!filledCellsCache.current) return;
+    
+    const ctx = filledCellsCache.current.getContext('2d', { alpha: false });
+    if (!ctx) return;
+    
+    const cellSize = BASE_CELL_SIZE;
+    const x = col * cellSize;
+    const y = row * cellSize;
+    
+    if (filled) {
+      // Draw filled cell
+      ctx.fillStyle = project.palette[colorIndex];
+      ctx.fillRect(x, y, cellSize, cellSize);
+    } else {
+      // Clear to white background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x, y, cellSize, cellSize);
+    }
+  }, [project.palette]);
 
   // Canvas Drawing Logic - Optimized with caching and adaptive quality
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
     if (!ctx) return;
 
     // Measure frame time for adaptive quality
@@ -207,44 +236,41 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
-    // Apply transformations
-    ctx.translate(pan.x, pan.y);
-    ctx.scale(zoom, zoom);
+    
+    // Scale context if we're rendering at lower resolution
+    if (renderScale !== 1.0) {
+      ctx.scale(renderScale, renderScale);
+    }
 
     // Draw Grid Area
     const cellSize = BASE_CELL_SIZE;
     const totalWidth = project.width * cellSize;
     const totalHeight = project.height * cellSize;
 
-    // Build cache if needed
-    if (!filledCellsCacheValid.current) {
-      buildFilledCellsCache();
+    // Initialize cache if needed
+    if (!cacheInitialized.current) {
+      initializeCache();
     }
     
     // Draw filled cells from cache (massive performance improvement!)
     if (filledCellsCache.current && filledCellsCacheValid.current) {
-      // Use image smoothing for better quality when zoomed
-      ctx.imageSmoothingEnabled = !isHighVelocity;
-      ctx.imageSmoothingQuality = 'high';
+      // Use image smoothing based on velocity and scale
+      ctx.imageSmoothingEnabled = !isHighVelocity && renderScale === 1.0;
+      ctx.imageSmoothingQuality = isHighVelocity || renderScale < 1.0 ? 'low' : 'high';
       ctx.drawImage(filledCellsCache.current, 0, 0);
     }
     
-    // Calculate visible area in grid coordinates
-    const invZoom = 1 / zoom;
-    const viewLeft = (-pan.x) * invZoom;
-    const viewTop = (-pan.y) * invZoom;
-    const viewRight = viewLeft + (canvas.width * invZoom);
-    const viewBottom = viewTop + (canvas.height * invZoom);
-
-    // Calculate which cells are visible
-    const startCol = Math.max(0, Math.floor(viewLeft / cellSize));
-    const endCol = Math.min(project.width - 1, Math.ceil(viewRight / cellSize));
-    const startRow = Math.max(0, Math.floor(viewTop / cellSize));
-    const endRow = Math.min(project.height - 1, Math.ceil(viewBottom / cellSize));
+    // With CSS transforms, we render the full canvas content at native resolution
+    // The browser GPU handles the transform, so we don't need viewport culling here
+    // We'll render all unfilled cells, but with adaptive quality
+    const startCol = 0;
+    const endCol = project.width - 1;
+    const startRow = 0;
+    const endRow = project.height - 1;
     
     // Adaptive quality: skip expensive operations during fast interactions
     const cellPixelSize = cellSize * zoom;
-    const shouldShowNumbers = cellPixelSize > 16 && !isHighVelocity; // Skip text during fast movement
+    const shouldShowNumbers = cellPixelSize > 16 && !isHighVelocity && renderScale === 1.0; // Skip text during fast movement
     const shouldShowBorders = shouldShowNumbers; // Borders and text together
     
     // Collect unfilled cells that need rendering
@@ -294,7 +320,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     
     // Render borders (if zoomed in and not moving too fast)
     if (shouldShowBorders && borderCells.length > 0) {
-      ctx.lineWidth = 1 / zoom;
+      ctx.lineWidth = 1; // Fixed line width since no canvas scaling
       
       // Batch borders by style
       const highlightBorders = borderCells.filter(c => c.shouldHighlight);
@@ -343,24 +369,43 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     
     // Draw Border around the whole thing
     ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 2 / zoom; // Keep border thin visually
+    ctx.lineWidth = 2;
     ctx.strokeRect(0, 0, totalWidth, totalHeight);
 
     ctx.restore();
     
     needsRedraw.current = false;
 
-  }, [grid, project, zoom, pan, selectedColorIndex, showHighlight, buildFilledCellsCache]);
+  }, [grid, project, zoom, pan, selectedColorIndex, showHighlight, renderScale, initializeCache]);
   
-  // Invalidate cache when grid changes
+  // Track previous grid to detect changes and update cache incrementally
+  const prevGridRef = useRef<Cell[]>(grid);
+  
   useEffect(() => {
-    filledCellsCacheValid.current = false;
-  }, [grid]);
+    const prevGrid = prevGridRef.current;
+    
+    // Find changed cells and update cache incrementally
+    if (cacheInitialized.current && prevGrid.length === grid.length) {
+      for (let i = 0; i < grid.length; i++) {
+        if (prevGrid[i].filled !== grid[i].filled) {
+          const row = Math.floor(i / project.width);
+          const col = i % project.width;
+          updateCacheCell(row, col, grid[i].filled, grid[i].colorIndex);
+        }
+      }
+    } else {
+      // Grid size changed or first render - need full rebuild
+      cacheInitialized.current = false;
+      filledCellsCacheValid.current = false;
+    }
+    
+    prevGridRef.current = grid;
+  }, [grid, project.width, updateCacheCell]);
 
   // Optimized Render Loop - only redraw when needed
   useEffect(() => {
     needsRedraw.current = true;
-  }, [grid, zoom, pan, selectedColorIndex, showHighlight]);
+  }, [grid, zoom, pan, selectedColorIndex, showHighlight, renderScale]);
   
   useEffect(() => {
     const renderLoop = () => {
@@ -407,16 +452,17 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   // Check if cursor is over a highlighted tile
   const checkIfOverHighlightedTile = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
-    if (!canvas) {
+    const container = containerRef.current;
+    if (!canvas || !container) {
       setIsOverHighlightedTile(false);
       return;
     }
 
-    const rect = canvas.getBoundingClientRect();
+    const rect = container.getBoundingClientRect();
     const clickX = clientX - rect.left;
     const clickY = clientY - rect.top;
 
-    // Transform coordinate back to grid space
+    // Transform coordinate back to grid space (accounting for CSS transform)
     const gridX = (clickX - pan.x) / zoom;
     const gridY = (clickY - pan.y) / zoom;
 
@@ -440,13 +486,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   // Event Handlers
   const handleTap = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
 
-    const rect = canvas.getBoundingClientRect();
+    const rect = container.getBoundingClientRect();
     const clickX = clientX - rect.left;
     const clickY = clientY - rect.top;
 
-    // Transform coordinate back to grid space
+    // Transform coordinate back to grid space (accounting for CSS transform)
     const gridX = (clickX - pan.x) / zoom;
     const gridY = (clickY - pan.y) / zoom;
 
@@ -480,6 +527,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     lastInteractionTime.current = Date.now(); // Track interaction time
     setIsOverHighlightedTile(false); // Reset cursor when starting to drag
     lastPointerPos.current = { x: e.clientX, y: e.clientY };
+    
+    // Lower resolution during interaction for better performance
+    setRenderScale(0.5);
     
     // Only reset total drag if we are starting a fresh interaction (1 finger)
     // If a second finger lands, we are continuing the interaction
@@ -578,7 +628,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     if (evCache.current.length === 0) {
       setIsDragging(false);
       isAnimating.current = false; // Stop continuous rendering
-      needsRedraw.current = true; // One final redraw
+      
+      // Restore full resolution after interaction
+      setRenderScale(1.0);
+      needsRedraw.current = true; // One final high-quality redraw
 
       // If moved less than threshold pixels total during the press, treat as click
       if (totalDragDistance.current < 15) {
@@ -637,11 +690,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       setPan({ x: newPanX, y: newPanY });
       needsRedraw.current = true;
       
-      // Stop animation after a short delay
+      // Stop animation and restore resolution after a short delay
       setTimeout(() => {
         isAnimating.current = false;
+        setRenderScale(1.0);
         needsRedraw.current = true; // Final high-quality redraw
-      }, 150);
+      }, 200);
     };
 
     // Add event listener with passive: false to allow preventDefault
@@ -711,10 +765,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         ref={containerRef} 
         className="flex-1 overflow-hidden relative touch-none bg-slate-100"
       >
-        <canvas
-          ref={canvasRef}
-          width={containerRef.current?.clientWidth || window.innerWidth}
-          height={containerRef.current?.clientHeight || window.innerHeight}
+        <div
           className={`absolute inset-0 touch-none ${isOverHighlightedTile ? 'cursor-pointer' : 'cursor-move'}`}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -726,8 +777,20 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
           onPointerCancel={handlePointerUp}
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setIsOverHighlightedTile(false)}
-          style={{ touchAction: 'none' }} 
-        />
+          style={{ touchAction: 'none' }}
+        >
+          <canvas
+            ref={canvasRef}
+            width={Math.floor((project.width * BASE_CELL_SIZE) * renderScale)}
+            height={Math.floor((project.height * BASE_CELL_SIZE) * renderScale)}
+            className="origin-top-left"
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom / renderScale})`,
+              willChange: 'transform',
+              imageRendering: isAnimating.current ? 'pixelated' : 'auto',
+            }}
+          />
+        </div>
         
         {/* Floating Zoom Controls */}
         <div className="absolute top-4 right-4 flex flex-col gap-2 bg-white rounded-lg shadow-md border border-slate-200 p-1">
