@@ -41,6 +41,15 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   const animationFrameId = useRef<number | null>(null);
   const isAnimating = useRef(false);
   
+  // Offscreen canvas for caching filled cells (major performance boost)
+  const filledCellsCache = useRef<HTMLCanvasElement | null>(null);
+  const filledCellsCacheValid = useRef(false);
+  
+  // Performance: track interaction velocity for adaptive quality
+  const lastDrawTime = useRef(Date.now());
+  const interactionVelocity = useRef(0);
+  const lastInteractionTime = useRef(Date.now());
+  
   // State for palette scrolling
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -120,12 +129,77 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     return () => clearTimeout(timer);
   }, [grid, project]);
 
-  // Canvas Drawing Logic - Optimized to only draw visible cells
+  // Build offscreen cache of filled cells (only when needed)
+  const buildFilledCellsCache = useCallback(() => {
+    if (!filledCellsCache.current) {
+      filledCellsCache.current = document.createElement('canvas');
+    }
+    
+    const cache = filledCellsCache.current;
+    const cellSize = BASE_CELL_SIZE;
+    cache.width = project.width * cellSize;
+    cache.height = project.height * cellSize;
+    
+    const ctx = cache.getContext('2d', { alpha: false });
+    if (!ctx) return;
+    
+    // White background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cache.width, cache.height);
+    
+    // Batch filled cells by color for optimal performance
+    const colorBatches = new Map<number, Array<{x: number, y: number}>>();
+    
+    for (let row = 0; row < project.height; row++) {
+      for (let col = 0; col < project.width; col++) {
+        const i = row * project.width + col;
+        const cell = grid[i];
+        
+        if (cell.filled) {
+          if (!colorBatches.has(cell.colorIndex)) {
+            colorBatches.set(cell.colorIndex, []);
+          }
+          colorBatches.get(cell.colorIndex)!.push({
+            x: col * cellSize,
+            y: row * cellSize
+          });
+        }
+      }
+    }
+    
+    // Render all filled cells
+    for (const [colorIndex, cells] of colorBatches) {
+      ctx.fillStyle = project.palette[colorIndex];
+      for (const {x, y} of cells) {
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+    
+    filledCellsCacheValid.current = true;
+  }, [grid, project]);
+
+  // Canvas Drawing Logic - Optimized with caching and adaptive quality
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // Measure frame time for adaptive quality
+    const now = Date.now();
+    const frameTime = now - lastDrawTime.current;
+    lastDrawTime.current = now;
+    
+    // Calculate interaction velocity (inversely proportional to frame time)
+    // Higher velocity = faster movement = lower quality needed
+    const timeSinceInteraction = now - lastInteractionTime.current;
+    if (isAnimating.current && timeSinceInteraction < 100) {
+      interactionVelocity.current = Math.min(10, interactionVelocity.current + 0.5);
+    } else {
+      interactionVelocity.current = Math.max(0, interactionVelocity.current - 0.5);
+    }
+    
+    const isHighVelocity = interactionVelocity.current > 3;
 
     // Clear
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -144,6 +218,19 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     const totalWidth = project.width * cellSize;
     const totalHeight = project.height * cellSize;
 
+    // Build cache if needed
+    if (!filledCellsCacheValid.current) {
+      buildFilledCellsCache();
+    }
+    
+    // Draw filled cells from cache (massive performance improvement!)
+    if (filledCellsCache.current && filledCellsCacheValid.current) {
+      // Use image smoothing for better quality when zoomed
+      ctx.imageSmoothingEnabled = !isHighVelocity;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(filledCellsCache.current, 0, 0);
+    }
+    
     // Calculate visible area in grid coordinates
     const invZoom = 1 / zoom;
     const viewLeft = (-pan.x) * invZoom;
@@ -161,13 +248,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     ctx.fillStyle = theme === 'dark' ? '#1e293b' : '#ffffff'; // Slate-800 : White
     ctx.fillRect(0, 0, totalWidth, totalHeight);
     
-    // Optimize: batch similar operations together
-    // Only show numbers when cells are large enough to be readable (reduce text rendering overhead)
+    // Adaptive quality: skip expensive operations during fast interactions
     const cellPixelSize = cellSize * zoom;
-    const shouldShowNumbers = cellPixelSize > 16; // Only show text when cells are >16px on screen
+    const shouldShowNumbers = cellPixelSize > 16 && !isHighVelocity; // Skip text during fast movement
+    const shouldShowBorders = shouldShowNumbers; // Borders and text together
     
-    // First pass: draw all filled cells (batch by color to reduce fillStyle changes)
-    const colorBatches = new Map<number, Array<{x: number, y: number}>>();
+    // Collect unfilled cells that need rendering
     const highlightCells: Array<{x: number, y: number}> = [];
     const borderCells: Array<{x: number, y: number, shouldHighlight: boolean}> = [];
     const textCells: Array<{x: number, y: number, text: string, shouldHighlight: boolean}> = [];
@@ -177,44 +263,30 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         const i = row * project.width + col;
         if (i < 0 || i >= grid.length) continue;
         
+        const cell = grid[i];
+        if (cell.filled) continue; // Skip filled cells - already drawn from cache
+        
         const x = col * cellSize;
         const y = row * cellSize;
-        const cell = grid[i];
 
-        if (cell.filled) {
-          // Batch filled cells by color
-          if (!colorBatches.has(cell.colorIndex)) {
-            colorBatches.set(cell.colorIndex, []);
-          }
-          colorBatches.get(cell.colorIndex)!.push({x, y});
-        } else {
-          // Highlight active color targets
-          const isTarget = cell.colorIndex === selectedColorIndex;
-          const shouldHighlight = isTarget && showHighlight;
+        // Highlight active color targets
+        const isTarget = cell.colorIndex === selectedColorIndex;
+        const shouldHighlight = isTarget && showHighlight;
 
-          if (shouldHighlight) {
-            highlightCells.push({x, y});
-          }
-
-          // Collect cells that need borders and text
-          if (shouldShowNumbers) {
-            borderCells.push({x, y, shouldHighlight});
-            textCells.push({
-              x, 
-              y, 
-              text: `${cell.colorIndex + 1}`, 
-              shouldHighlight
-            });
-          }
+        if (shouldHighlight) {
+          highlightCells.push({x, y});
         }
-      }
-    }
-    
-    // Render filled cells batch by color
-    for (const [colorIndex, cells] of colorBatches) {
-      ctx.fillStyle = project.palette[colorIndex];
-      for (const {x, y} of cells) {
-        ctx.fillRect(x, y, cellSize, cellSize);
+
+        // Collect cells that need borders and text (only when not moving fast)
+        if (shouldShowNumbers) {
+          borderCells.push({x, y, shouldHighlight});
+          textCells.push({
+            x, 
+            y, 
+            text: `${cell.colorIndex + 1}`, 
+            shouldHighlight
+          });
+        }
       }
     }
     
@@ -226,8 +298,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       }
     }
     
-    // Render borders (if zoomed in)
-    if (shouldShowNumbers && borderCells.length > 0) {
+    // Render borders (if zoomed in and not moving too fast)
+    if (shouldShowBorders && borderCells.length > 0) {
       ctx.lineWidth = 1 / zoom;
       
       // Batch borders by style
@@ -249,7 +321,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       }
     }
     
-    // Render text (most expensive operation - batch by style)
+    // Render text (most expensive operation - skip during fast movement)
     if (shouldShowNumbers && textCells.length > 0) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -284,7 +356,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     
     needsRedraw.current = false;
 
-  }, [grid, project, zoom, pan, selectedColorIndex, showHighlight, theme]);
+  }, [grid, project, zoom, pan, selectedColorIndex, showHighlight, theme, buildFilledCellsCache]);
+  
+  // Invalidate cache when grid changes
+  useEffect(() => {
+    filledCellsCacheValid.current = false;
+  }, [grid]);
 
   // Optimized Render Loop - only redraw when needed
   useEffect(() => {
@@ -308,18 +385,27 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     };
   }, [draw]);
 
-  // Initial centering
+  // Initial centering - same logic as handleCenter button
   useEffect(() => {
     if (containerRef.current) {
-       const { width, height } = containerRef.current.getBoundingClientRect();
-       const contentWidth = project.width * BASE_CELL_SIZE;
-       const contentHeight = project.height * BASE_CELL_SIZE;
+       const { width: cW, height: cH } = containerRef.current.getBoundingClientRect();
+       const contentW = project.width * BASE_CELL_SIZE;
+       const contentH = project.height * BASE_CELL_SIZE;
        
-       // Center it
-       setPan({
-         x: (width - contentWidth)/2,
-         y: (height - contentHeight)/2
-       });
+       // Calculate scale to fit with some margin (same as handleCenter)
+       const margin = 40;
+       const scaleX = (cW - margin) / contentW;
+       const scaleY = (cH - margin) / contentH;
+       
+       // Fit entire image, clamped to reasonable limits
+       let newZoom = Math.min(scaleX, scaleY);
+       newZoom = Math.max(0.1, Math.min(newZoom, 5)); 
+
+       const newPanX = (cW - contentW * newZoom) / 2;
+       const newPanY = (cH - contentH * newZoom) / 2;
+       
+       setZoom(newZoom);
+       setPan({ x: newPanX, y: newPanY });
        needsRedraw.current = true;
     }
   }, []);
@@ -397,6 +483,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
 
     setIsDragging(true);
     isAnimating.current = true; // Start continuous rendering during interaction
+    lastInteractionTime.current = Date.now(); // Track interaction time
     setIsOverHighlightedTile(false); // Reset cursor when starting to drag
     lastPointerPos.current = { x: e.clientX, y: e.clientY };
     
@@ -408,6 +495,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    // Track interaction time for adaptive quality
+    lastInteractionTime.current = Date.now();
+    
     // 1. Update the event in the cache
     const index = evCache.current.findIndex(ev => ev.pointerId === e.pointerId);
     if (index > -1) {
@@ -525,6 +615,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       
+      // Track interaction for adaptive quality
+      lastInteractionTime.current = Date.now();
+      isAnimating.current = true;
+      
       const rect = container.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
@@ -548,6 +642,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       setZoom(newZoom);
       setPan({ x: newPanX, y: newPanY });
       needsRedraw.current = true;
+      
+      // Stop animation after a short delay
+      setTimeout(() => {
+        isAnimating.current = false;
+        needsRedraw.current = true; // Final high-quality redraw
+      }, 150);
     };
 
     // Add event listener with passive: false to allow preventDefault
