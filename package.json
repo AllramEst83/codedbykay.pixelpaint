@@ -1,7 +1,7 @@
 {
   "name": "pixelpaint-color-by-number",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@pixi/react": "^8.0.5",
     "lucide-react": "^0.556.0",
+    "pixi.js": "^8.14.3",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"
   },

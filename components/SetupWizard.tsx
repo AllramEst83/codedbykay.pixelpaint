@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Grid3X3, Wand2, Loader2, Palette } from 'lucide-react';
+import { ArrowLeft, Grid3X3, Wand2, Loader2, Palette, AlertCircle } from 'lucide-react';
 import { Button } from './Button';
 import { processImage } from '../services/imageEngine';
 import { ProjectData } from '../types';
@@ -19,6 +19,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
   const [isStarting, setIsStarting] = useState(false);
   const [previewProject, setPreviewProject] = useState<ProjectData | null>(null);
   const [dataUrl, setDataUrl] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -36,11 +37,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
     // Debounce the processing so slider is smooth
     const timer = setTimeout(async () => {
       setLoading(true);
+      setError(null);
       try {
         const result = await processImage(dataUrl, density, maxColors);
         setPreviewProject(result);
       } catch (e) {
-        console.error(e);
+        console.error('Image processing failed:', e);
+        setError(e instanceof Error ? e.message : 'Failed to process image. Please try a smaller image or different settings.');
+        setPreviewProject(null);
       } finally {
         setLoading(false);
       }
@@ -111,7 +115,19 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
              </div>
            )}
            
-           {previewProject ? (
+           {error ? (
+             <div className="flex flex-col items-center gap-3 text-center px-4">
+               <AlertCircle size={48} className="text-red-500" />
+               <div className="text-red-600 dark:text-red-400 font-medium">Processing Failed</div>
+               <div className="text-sm text-slate-500 dark:text-slate-400 max-w-xs">{error}</div>
+               <button 
+                 onClick={onBack}
+                 className="mt-2 px-4 py-2 text-sm bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-lg transition-colors"
+               >
+                 Try Another Image
+               </button>
+             </div>
+           ) : previewProject ? (
               <canvas 
                 ref={canvasRef}
                 className="max-w-full max-h-full object-contain shadow-lg bg-white dark:bg-slate-800"
