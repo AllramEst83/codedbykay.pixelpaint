@@ -14,4 +14,63 @@
 /* Prevent pull-to-refresh on mobile to improve canvas interaction */
 body {
   overscroll-behavior-y: contain;
+  overscroll-behavior-x: contain;
+  /* Prevent browser zoom gestures - allow panning but not pinch zoom */
+  touch-action: pan-x pan-y;
+  /* Ensure body fits viewport */
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100vw;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow: hidden;
+  position: fixed;
+  /* Prevent text selection zoom */
+  -webkit-user-select: none;
+  user-select: none;
 }
+
+html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100vw;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow: hidden;
+  /* Prevent browser zoom */
+  touch-action: pan-x pan-y;
+  /* Use dynamic viewport height for mobile browsers */
+  height: 100vh;
+  height: 100dvh;
+  /* Prevent text selection zoom */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  max-width: 100vw;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow: hidden;
+  position: relative;
+  /* Ensure root doesn't exceed viewport */
+  box-sizing: border-box;
+}
+
+/* Prevent text selection zoom on double-tap (iOS) */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Prevent pinch zoom */
+canvas, img {
+  touch-action: none;
+}
+

@@ -83,7 +83,7 @@ function App() {
 
   // Home View
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-4 md:p-8 flex flex-col items-center">
+    <div className="h-full w-full bg-slate-50 dark:bg-slate-900 p-4 md:p-8 flex flex-col items-center overflow-y-auto">
       <div className="max-w-3xl w-full space-y-8">
         
         {/* Theme Toggle */}

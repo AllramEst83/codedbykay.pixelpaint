@@ -132,8 +132,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       pixiInitializedRef.current = true;
       
       const container = containerRef.current;
-      const initialWidth = container?.clientWidth || window.innerWidth;
-      const initialHeight = container?.clientHeight || window.innerHeight;
+      // Use actual container dimensions, ensuring we don't exceed viewport
+      const initialWidth = container?.clientWidth || Math.min(window.innerWidth, window.visualViewport?.width || window.innerWidth);
+      const initialHeight = container?.clientHeight || Math.min(window.innerHeight, window.visualViewport?.height || window.innerHeight);
       containerSizeRef.current = { width: initialWidth, height: initialHeight };
       
       const app = new PIXI.Application();
@@ -494,10 +495,18 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current && appRef.current) {
+        // Use visual viewport if available (accounts for mobile browser UI)
+        const viewportWidth = window.visualViewport?.width || window.innerWidth;
+        const viewportHeight = window.visualViewport?.height || window.innerHeight;
         const { clientWidth, clientHeight } = containerRef.current;
-        if (clientWidth > 0 && clientHeight > 0) {
-          containerSizeRef.current = { width: clientWidth, height: clientHeight };
-          appRef.current.renderer.resize(clientWidth, clientHeight);
+        
+        // Ensure we don't exceed viewport dimensions
+        const width = Math.min(clientWidth, viewportWidth);
+        const height = Math.min(clientHeight, viewportHeight);
+        
+        if (width > 0 && height > 0) {
+          containerSizeRef.current = { width, height };
+          appRef.current.renderer.resize(width, height);
           dirtyFlags.current.text = true;
         }
       }
@@ -508,6 +517,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     const timer2 = setTimeout(handleResize, 500);
     
     window.addEventListener('resize', handleResize);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+    }
     const resizeObserver = new ResizeObserver(handleResize);
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
@@ -517,6 +529,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       clearTimeout(timer1);
       clearTimeout(timer2);
       window.removeEventListener('resize', handleResize);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize);
+      }
       resizeObserver.disconnect();
     };
   }, []);
@@ -848,7 +863,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-900 relative overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-slate-50 dark:bg-slate-900 relative overflow-hidden">
       {/* Top Bar */}
       <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between shadow-sm z-10 shrink-0">
         <button onClick={onExit} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 text-sm font-medium">
@@ -879,7 +894,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       {/* Main Canvas Area */}
       <div 
         ref={containerRef} 
-        className="flex-1 overflow-hidden relative touch-none bg-slate-100 dark:bg-slate-900"
+        className="flex-1 overflow-hidden relative touch-none bg-slate-100 dark:bg-slate-900 min-h-0"
+        style={{ maxHeight: '100%' }}
       >
         {/* Loading Spinner - shows until PixiJS is ready */}
         {!pixiReady && (
@@ -931,7 +947,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       </div>
 
       {/* Bottom Palette */}
-      <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.3)] z-20 pb-safe">
+      <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.3)] z-20">
         <div className="flex items-stretch">
           <button
             onClick={scrollPaletteLeft}
