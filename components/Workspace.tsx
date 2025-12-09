@@ -470,11 +470,21 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
 
   // Regenerate textures when theme changes
   useEffect(() => {
-    if (appRef.current && numberTexturesRef.current.size > 0) {
-      for (const texture of numberTexturesRef.current.values()) {
-        texture.destroy(true);
+    if (appRef.current) {
+      // Destroy old textures
+      if (numberTexturesRef.current.size > 0) {
+        for (const texture of numberTexturesRef.current.values()) {
+          texture.destroy(true);
+        }
       }
       numberTexturesRef.current.clear();
+      
+      // Clear all text sprites to remove references to destroyed textures
+      if (textContainerRef.current) {
+        textContainerRef.current.removeChildren();
+      }
+      
+      // Generate new textures
       generateNumberTextures(appRef.current);
       dirtyFlags.current.text = true;
     }
