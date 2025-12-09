@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Palette, Trash2, ArrowRight, Moon, Sun } from 'lucide-react';
+import { Palette, Trash2, ArrowRight, Moon, Sun, CheckCircle2 } from 'lucide-react';
 import { AppView, ProjectData } from './types';
 import { ImageUploader } from './components/ImageUploader';
 import { SetupWizard } from './components/SetupWizard';
@@ -131,37 +131,53 @@ function App() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {savedProjects.map(project => {
                 const percent = Math.round((project.grid.filter(c => c.filled).length / project.grid.length) * 100);
+                const isCompleted = project.completed === true || percent === 100;
                 
                 return (
                   <div 
                     key={project.id}
                     onClick={() => handleLoadProject(project)}
-                    className="group relative bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex gap-4 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-md transition-all"
+                    className={`group relative bg-white dark:bg-slate-800 rounded-xl border p-4 flex gap-4 cursor-pointer hover:shadow-md transition-all ${
+                      isCompleted 
+                        ? 'border-green-300 dark:border-green-700 hover:border-green-400 dark:hover:border-green-600' 
+                        : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600'
+                    }`}
                   >
                     {/* Thumbnail */}
                     <div className="w-20 h-20 shrink-0 bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden relative">
                        <img 
                          src={project.originalImage} 
-                         className="w-full h-full object-cover opacity-80" 
+                         className={`w-full h-full object-cover ${isCompleted ? 'opacity-60' : 'opacity-80'}`}
                          alt="Thumbnail"
                        />
                        <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                         <span className="text-xs font-bold text-white bg-black/50 px-1.5 py-0.5 rounded backdrop-blur-sm">
-                           {percent}%
-                         </span>
+                         {isCompleted ? (
+                           <CheckCircle2 className="text-green-500 dark:text-green-400 w-8 h-8 drop-shadow-lg" strokeWidth={2.5} />
+                         ) : (
+                           <span className="text-xs font-bold text-white bg-black/50 px-1.5 py-0.5 rounded backdrop-blur-sm">
+                             {percent}%
+                           </span>
+                         )}
                        </div>
                     </div>
                     
                     {/* Info */}
                     <div className="flex-1 flex flex-col justify-center">
-                      <h3 className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                        {new Date(project.createdAt).toLocaleDateString()}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                          {new Date(project.createdAt).toLocaleDateString()}
+                        </h3>
+                        {isCompleted && (
+                          <span className="text-xs font-semibold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+                            Done
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-slate-500 dark:text-slate-400">
                         {project.width} x {project.height} Grid
                       </p>
                       <div className="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
-                        <div className="bg-green-500 dark:bg-green-600 h-full rounded-full" style={{ width: `${percent}%` }} />
+                        <div className={`h-full rounded-full ${isCompleted ? 'bg-green-500 dark:bg-green-600' : 'bg-green-500 dark:bg-green-600'}`} style={{ width: `${percent}%` }} />
                       </div>
                     </div>
 

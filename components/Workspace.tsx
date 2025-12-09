@@ -4,6 +4,7 @@ import { ProjectData, Cell } from '../types';
 import { saveProject } from '../services/storage';
 import { useTheme } from '../contexts/ThemeContext';
 import * as PIXI from 'pixi.js';
+import confetti from 'canvas-confetti';
 
 interface WorkspaceProps {
   project: ProjectData;
@@ -539,12 +540,72 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   // Calculate completion
   useEffect(() => {
     const filled = grid.filter(c => c.filled).length;
-    setCompletedPercent(Math.round((filled / grid.length) * 100));
+    const total = grid.length;
+    const percent = Math.round((filled / total) * 100);
+    setCompletedPercent(percent);
+    
+    // Check if puzzle is completed (100% filled)
+    const isCompleted = filled === total && total > 0;
+    const wasCompleted = project.completed === true;
+    
+    // Trigger confetti when completion reaches 100% for the first time
+    let confettiInterval: NodeJS.Timeout | null = null;
+    if (isCompleted && !wasCompleted) {
+      // Create confetti animation that rains from top to bottom
+      const duration = 3000; // 3 seconds
+      const animationEnd = Date.now() + duration;
+      const defaults = { 
+        startVelocity: 30, 
+        spread: 360, 
+        ticks: 60, 
+        zIndex: 9999,
+        gravity: 1,
+        decay: 0.9
+      };
+
+      function randomInRange(min: number, max: number) {
+        return Math.random() * (max - min) + min;
+      }
+
+      // Confetti from multiple positions at the top of the screen
+      confettiInterval = setInterval(function() {
+        const timeLeft = animationEnd - Date.now();
+
+        if (timeLeft <= 0) {
+          if (confettiInterval) clearInterval(confettiInterval);
+          return;
+        }
+
+        const particleCount = 50 * (timeLeft / duration);
+        
+        // Confetti raining from top (y: 0 means top of screen)
+        confetti({
+          ...defaults,
+          particleCount,
+          origin: { x: randomInRange(0.1, 0.3), y: 0 }
+        });
+        confetti({
+          ...defaults,
+          particleCount,
+          origin: { x: randomInRange(0.4, 0.6), y: 0 }
+        });
+        confetti({
+          ...defaults,
+          particleCount,
+          origin: { x: randomInRange(0.7, 0.9), y: 0 }
+        });
+      }, 250);
+    }
     
     const timer = setTimeout(() => {
-      saveProject({ ...project, grid, pixelSize: BASE_CELL_SIZE });
+      saveProject({ ...project, grid, pixelSize: BASE_CELL_SIZE, completed: isCompleted });
     }, 1000);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (confettiInterval) {
+        clearInterval(confettiInterval);
+      }
+    };
   }, [grid, project]);
 
   // Palette scroll handlers
