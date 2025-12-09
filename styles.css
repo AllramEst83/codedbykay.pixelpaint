@@ -74,3 +74,8 @@ canvas, img {
   touch-action: none;
 }
 
+/* Cursor styles for paint mode */
+.cursor-crosshair {
+  cursor: crosshair !important;
+}
+
