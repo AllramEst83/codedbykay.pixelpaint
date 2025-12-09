@@ -19,6 +19,7 @@ export interface ProjectData {
   palette: string[]; // Hex codes
   grid: Cell[]; // 1D array of width * height
   pixelSize: number; // For rendering logic
+  completed?: boolean; // Whether the puzzle is fully completed
 }
 
 export type AppView = 'HOME' | 'SETUP' | 'WORKSPACE';
