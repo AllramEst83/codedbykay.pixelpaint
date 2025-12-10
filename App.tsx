@@ -183,7 +183,7 @@ function App() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
                         {project.width} x {project.height} Grid
                       </p>
                       <div className="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
