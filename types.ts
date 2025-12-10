@@ -5,8 +5,9 @@ export interface RGB {
 }
 
 export interface Cell {
-  colorIndex: number; // Index in the palette
+  colorIndex: number; // Index in the palette (the "correct" color for this cell)
   filled: boolean;
+  filledColorIndex?: number; // The color actually applied (undefined = not filled)
 }
 
 export interface ProjectData {
