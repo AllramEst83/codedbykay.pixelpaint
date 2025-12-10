@@ -11,6 +11,28 @@
 
 **Effect**: Numbers are now more clearly visible through incorrect color overlays, making it easier to see what number should be painted.
 
+### 1b. Show Numbers Through Incorrect Color Fills
+**Changed**: Modified cell rendering logic to show numbers on incorrectly filled cells
+
+**Location**:
+- Render loop: Line ~378 in `Workspace.tsx`
+
+**Old Logic**:
+```typescript
+if (cell.filled) continue; // Skip ALL filled cells
+```
+
+**New Logic**:
+```typescript
+const isCorrectlyFilled = cell.filled && cell.filledColorIndex === cell.colorIndex;
+if (isCorrectlyFilled) continue; // Only skip CORRECTLY filled cells
+```
+
+**Effect**: 
+- Numbers are visible on unfilled cells ✓
+- Numbers are visible on incorrectly filled cells ✓ (NEW)
+- Numbers are hidden on correctly filled cells ✓
+
 ### 2. Prevent Reapplying the Same Color
 **Added**: Early return checks to prevent unnecessary updates when applying the same color
 
@@ -80,6 +102,8 @@ The architecture ensures no color mixing:
 
 ## User Experience Improvements
 1. **Better Visibility**: Numbers are clearer through incorrect colors
-2. **Smoother Interaction**: No lag from redundant operations
-3. **Predictable Behavior**: Colors always replace, never mix
-4. **Clear Feedback**: One color at a time makes corrections obvious
+2. **Numbers Always Visible When Needed**: Numbers show through transparent incorrect fills
+3. **Smoother Interaction**: No lag from redundant operations
+4. **Predictable Behavior**: Colors always replace, never mix
+5. **Clear Feedback**: One color at a time makes corrections obvious
+6. **Easy Error Correction**: See the number through the wrong color to know what to fix
