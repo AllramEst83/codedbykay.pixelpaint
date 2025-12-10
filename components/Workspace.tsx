@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { ArrowLeft, Check, Minus, Plus, Lightbulb, LightbulbOff, Maximize, ChevronLeft, ChevronRight, Moon, Sun, Loader2 } from 'lucide-react';
+import { ArrowLeft, Check, Minus, Plus, Lightbulb, LightbulbOff, Maximize, ChevronLeft, ChevronRight, Moon, Sun, Loader2, HelpCircle } from 'lucide-react';
 import { ProjectData, Cell } from '../types';
 import { saveProject } from '../services/storage';
 import { useTheme } from '../contexts/ThemeContext';
+import { InstructionsModal } from './InstructionsModal';
 import * as PIXI from 'pixi.js';
 import confetti from 'canvas-confetti';
 
@@ -25,6 +26,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   const [completedPercent, setCompletedPercent] = useState(0);
   const [showHighlight, setShowHighlight] = useState(true);
   const [pixiReady, setPixiReady] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
   
   // Cursor state as ref (avoid React re-renders for cursor changes)
   const isOverHighlightedTileRef = useRef(false);
@@ -1088,6 +1090,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         </div>
         <div className="w-32 flex justify-end gap-2">
           <button
+            onClick={() => setShowInstructions(true)}
+            className="p-2 rounded-full transition-colors text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400"
+            title="Show instructions"
+            aria-label="Show instructions"
+          >
+            <HelpCircle size={20} />
+          </button>
+          <button
             onClick={toggleTheme}
             className="p-2 rounded-full transition-colors text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
             title={theme === 'dark' ? "Switch to light mode" : "Switch to dark mode"}
@@ -1229,6 +1239,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
           </button>
         </div>
       </div>
+
+      {/* Instructions Modal */}
+      <InstructionsModal 
+        isOpen={showInstructions} 
+        onClose={() => setShowInstructions(false)} 
+      />
     </div>
   );
 };

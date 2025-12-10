@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowLeft, Grid3X3, Wand2, Loader2, Palette, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Grid3X3, Wand2, Loader2, Palette, AlertCircle, HelpCircle, Moon, Sun } from 'lucide-react';
 import { Button } from './Button';
 import { processImage } from '../services/imageEngine';
 import { ProjectData } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
+import { InstructionsModal } from './InstructionsModal';
 
 interface SetupWizardProps {
   imageFile: File;
@@ -12,7 +13,7 @@ interface SetupWizardProps {
 }
 
 export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onComplete }) => {
-  const { theme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const [density, setDensity] = useState(150); // Default higher for better recognition
   const [maxColors, setMaxColors] = useState(32); // Default palette size
   const [loading, setLoading] = useState(false);
@@ -20,6 +21,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
   const [previewProject, setPreviewProject] = useState<ProjectData | null>(null);
   const [dataUrl, setDataUrl] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -98,12 +100,29 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
 
   return (
     <div className="flex flex-col h-full w-full bg-slate-50 dark:bg-slate-900 max-w-5xl mx-auto p-4 md:p-6 overflow-y-auto">
-      <div className="flex items-center justify-between mb-6 shrink-0">
-        <button onClick={onBack} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-600 dark:text-slate-300">
+      <div className="flex items-center justify-between mb-6 shrink-0 gap-2 md:gap-4 relative">
+        <button onClick={onBack} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-600 dark:text-slate-300 shrink-0 z-10">
           <ArrowLeft size={24} />
         </button>
-        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">Customize Puzzle</h2>
-        <div className="w-10" />
+        <h2 className="text-lg md:text-xl font-bold text-slate-800 dark:text-slate-200 flex-1 text-center min-w-0 px-2">Customize Puzzle</h2>
+        <div className="flex justify-end gap-2 shrink-0 z-10">
+          <button
+            onClick={() => setShowInstructions(true)}
+            className="p-2 rounded-full transition-colors text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400"
+            title="Show instructions"
+            aria-label="Show instructions"
+          >
+            <HelpCircle size={20} />
+          </button>
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-full transition-colors text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+            title={theme === 'dark' ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col md:flex-row gap-6 md:overflow-hidden md:min-h-0">
@@ -221,6 +240,12 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
           </div>
         </div>
       </div>
+
+      {/* Instructions Modal */}
+      <InstructionsModal 
+        isOpen={showInstructions} 
+        onClose={() => setShowInstructions(false)} 
+      />
     </div>
   );
 };

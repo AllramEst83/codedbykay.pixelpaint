@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Palette, Trash2, ArrowRight, Moon, Sun, CheckCircle2 } from 'lucide-react';
+import { Palette, Trash2, ArrowRight, Moon, Sun, CheckCircle2, HelpCircle } from 'lucide-react';
 import { AppView, ProjectData } from './types';
 import { ImageUploader } from './components/ImageUploader';
 import { SetupWizard } from './components/SetupWizard';
 import { Workspace } from './components/Workspace';
 import { Button } from './components/Button';
+import { InstructionsModal } from './components/InstructionsModal';
 import { getProjects, saveProject, deleteProject } from './services/storage';
 import { useTheme } from './contexts/ThemeContext';
 
@@ -18,6 +19,7 @@ function App() {
   const [currentProject, setCurrentProject] = useState<ProjectData | null>(null);
   const [savedProjects, setSavedProjects] = useState<ProjectData[]>([]);
   const [autoOpenPicker, setAutoOpenPicker] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   useEffect(() => {
     if (view === 'HOME') {
@@ -86,8 +88,16 @@ function App() {
     <div className="h-full w-full bg-slate-50 dark:bg-slate-900 p-4 md:p-8 flex flex-col items-center overflow-y-auto">
       <div className="max-w-3xl w-full space-y-8">
         
-        {/* Theme Toggle */}
-        <div className="flex justify-end">
+        {/* Theme Toggle and Hint */}
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => setShowInstructions(true)}
+            className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+            title="Show instructions"
+            aria-label="Show instructions"
+          >
+            <HelpCircle size={20} />
+          </button>
           <button
             onClick={toggleTheme}
             className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
@@ -204,6 +214,12 @@ function App() {
         </div>
 
       </div>
+
+      {/* Instructions Modal */}
+      <InstructionsModal 
+        isOpen={showInstructions} 
+        onClose={() => setShowInstructions(false)} 
+      />
     </div>
   );
 }
