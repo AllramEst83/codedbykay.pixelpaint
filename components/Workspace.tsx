@@ -375,11 +375,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
             if (i < 0 || i >= grid.length) continue;
             
             const cell = grid[i];
-            
-            // Skip cells that are correctly filled (no need to show number)
-            // Show numbers for: unfilled cells OR incorrectly filled cells
-            const isCorrectlyFilled = cell.filled && cell.filledColorIndex === cell.colorIndex;
-            if (isCorrectlyFilled) continue;
+            if (cell.filled) continue;
             
             const x = col * cellSize;
             const y = row * cellSize;

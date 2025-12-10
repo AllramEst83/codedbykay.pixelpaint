@@ -2,36 +2,14 @@
 
 ## Changes Made
 
-### 1. Improved Transparency for Better Number Visibility
+### 1. Improved Transparency for Incorrect Colors
 **Changed**: Reduced alpha value for incorrect color overlays from `0.2` to `0.15`
 
 **Locations**:
 - Render loop: Line ~349 in `Workspace.tsx`
 - Immediate draw function: Line ~714 in `Workspace.tsx`
 
-**Effect**: Numbers are now more clearly visible through incorrect color overlays, making it easier to see what number should be painted.
-
-### 1b. Show Numbers Through Incorrect Color Fills
-**Changed**: Modified cell rendering logic to show numbers on incorrectly filled cells
-
-**Location**:
-- Render loop: Line ~378 in `Workspace.tsx`
-
-**Old Logic**:
-```typescript
-if (cell.filled) continue; // Skip ALL filled cells
-```
-
-**New Logic**:
-```typescript
-const isCorrectlyFilled = cell.filled && cell.filledColorIndex === cell.colorIndex;
-if (isCorrectlyFilled) continue; // Only skip CORRECTLY filled cells
-```
-
-**Effect**: 
-- Numbers are visible on unfilled cells ✓
-- Numbers are visible on incorrectly filled cells ✓ (NEW)
-- Numbers are hidden on correctly filled cells ✓
+**Effect**: Incorrect colors are more transparent, providing better visual distinction between correct and incorrect fills while keeping the color visible enough to identify the mistake.
 
 ### 2. Prevent Reapplying the Same Color
 **Added**: Early return checks to prevent unnecessary updates when applying the same color
@@ -101,9 +79,8 @@ The architecture ensures no color mixing:
 - ✅ All three tweaks implemented correctly
 
 ## User Experience Improvements
-1. **Better Visibility**: Numbers are clearer through incorrect colors
-2. **Numbers Always Visible When Needed**: Numbers show through transparent incorrect fills
-3. **Smoother Interaction**: No lag from redundant operations
-4. **Predictable Behavior**: Colors always replace, never mix
-5. **Clear Feedback**: One color at a time makes corrections obvious
-6. **Easy Error Correction**: See the number through the wrong color to know what to fix
+1. **Better Visual Distinction**: Lighter transparency makes incorrect fills more distinguishable
+2. **Smoother Interaction**: No lag from redundant operations (same color reapplication is a no-op)
+3. **Predictable Behavior**: Colors always replace, never mix
+4. **Clear Feedback**: One color at a time makes corrections obvious
+5. **Clean Interface**: Numbers hidden on all filled cells for a cleaner look
