@@ -345,11 +345,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
           filledGraphics.fill(colorHex);
         }
         
-        // Draw incorrect fills (transparent)
+        // Draw incorrect fills (transparent - light enough to see numbers)
         for (const { x, y, colorIndex } of incorrectFills) {
           const colorHex = parseInt(project.palette[colorIndex].replace('#', ''), 16);
           filledGraphics.rect(x, y, cellSize, cellSize);
-          filledGraphics.fill({ color: colorHex, alpha: 0.2 });
+          filledGraphics.fill({ color: colorHex, alpha: 0.15 });
         }
         
         dirtyFlags.current.filled = false;
@@ -731,10 +731,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     const colorHex = parseInt(project.palette[filledColorIndex].replace('#', ''), 16);
     
     // Draw immediately without clearing
-    // If filled color matches correct color, draw opaque; otherwise transparent
+    // If filled color matches correct color, draw opaque; otherwise transparent (light enough to see numbers)
     const isCorrect = filledColorIndex === correctColorIndex;
     filledGraphics.rect(x, y, BASE_CELL_SIZE, BASE_CELL_SIZE);
-    filledGraphics.fill(isCorrect ? colorHex : { color: colorHex, alpha: 0.2 });
+    filledGraphics.fill(isCorrect ? colorHex : { color: colorHex, alpha: 0.15 });
   }, [project.palette]);
 
   // Handle tap/click - applies selected color to any single cell
@@ -744,13 +744,19 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       const cell = gridRef.current[result.index];
       const selectedColor = selectedColorIndexRef.current;
       
-      // Apply color to any unfilled cell OR replace existing fill
+      // Skip if trying to apply the same color that's already there
+      if (cell.filled && cell.filledColorIndex === selectedColor) {
+        return;
+      }
+      
+      // Apply color to any unfilled cell OR replace existing fill with new color
       // Immediately draw the filled cell for instant visual feedback
       immediatelyDrawFilledCell(result.col, result.row, selectedColor, cell.colorIndex);
       
       // Mark dirty flags
       dirtyFlags.current.highlight = true;
       dirtyFlags.current.text = true;
+      dirtyFlags.current.filled = true; // Need to redraw to replace old color
       
       // Update React state (for persistence and completion tracking)
       setGrid(prev => {
@@ -861,12 +867,19 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
           const cell = gridRef.current[result.index];
           const selectedColor = selectedColorIndexRef.current;
           
-          // Paint the cell
+          // Skip if trying to apply the same color that's already there
+          if (cell.filled && cell.filledColorIndex === selectedColor) {
+            paintedCellsInStroke.current.add(result.index); // Still mark as visited
+            return;
+          }
+          
+          // Paint the cell (replaces any previous color)
           paintedCellsInStroke.current.add(result.index);
           immediatelyDrawFilledCell(result.col, result.row, selectedColor, cell.colorIndex);
           
           dirtyFlags.current.highlight = true;
           dirtyFlags.current.text = true;
+          dirtyFlags.current.filled = true; // Need to redraw to replace old color
           
           // Update grid state
           setGrid(prev => {
