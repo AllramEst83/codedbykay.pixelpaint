@@ -209,11 +209,11 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ imageFile, onBack, onC
           <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-700">
              <div className="flex justify-between text-sm py-2 border-b border-slate-100 dark:border-slate-700">
                <span className="text-slate-500 dark:text-slate-400">Grid Size</span>
-               <span className="font-medium dark:text-slate-300">{previewProject ? `${previewProject.width} x ${previewProject.height}` : '-'}</span>
+               <span className="font-medium text-slate-700 dark:text-slate-300">{previewProject ? `${previewProject.width} x ${previewProject.height}` : '-'}</span>
              </div>
              <div className="flex justify-between text-sm py-2 border-b border-slate-100 dark:border-slate-700">
                <span className="text-slate-500 dark:text-slate-400">Colors Found</span>
-               <span className="font-medium dark:text-slate-300">{previewProject ? previewProject.palette.length : '-'}</span>
+               <span className="font-medium text-slate-700 dark:text-slate-300">{previewProject ? previewProject.palette.length : '-'}</span>
              </div>
           </div>
           

@@ -108,12 +108,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     const maxNum = project.palette.length; // Only create textures we need
     const textureMap = new Map<string, PIXI.Texture>();
     
-    // Reuse text styles for all numbers
+    // Reuse text styles for all numbers - improved contrast for better visibility
     const styles = {
-      normalLight: new PIXI.TextStyle({ fontFamily: 'sans-serif', fontSize: 10, fill: 0x94a3b8 }),
-      highlightLight: new PIXI.TextStyle({ fontFamily: 'sans-serif', fontSize: 10, fill: 0x4338ca, fontWeight: 'bold' }),
-      normalDark: new PIXI.TextStyle({ fontFamily: 'sans-serif', fontSize: 10, fill: 0x64748b }),
-      highlightDark: new PIXI.TextStyle({ fontFamily: 'sans-serif', fontSize: 10, fill: 0x818cf8, fontWeight: 'bold' }),
+      normalLight: new PIXI.TextStyle({ fontFamily: 'sans-serif', fontSize: 10, fill: 0x475569, fontWeight: '600' }), // slate-600, darker for better contrast
+      highlightLight: new PIXI.TextStyle({ fontFamily: 'sans-serif', fontSize: 10, fill: 0x4f46e5, fontWeight: 'bold' }), // indigo-600, vibrant but readable
+      normalDark: new PIXI.TextStyle({ fontFamily: 'sans-serif', fontSize: 10, fill: 0xcbd5e1, fontWeight: '600' }), // slate-300, lighter for better contrast
+      highlightDark: new PIXI.TextStyle({ fontFamily: 'sans-serif', fontSize: 10, fill: 0xa5b4fc, fontWeight: 'bold' }), // indigo-300, bright and readable
     };
     
     // Create a reusable text object for efficiency
@@ -1086,7 +1086,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         </button>
         <div className="flex flex-col items-center">
           <h1 className="font-bold text-slate-800 dark:text-slate-200 text-sm md:text-base">Pixel Art</h1>
-          <div className="text-xs text-slate-500 dark:text-slate-400">{completedPercent}% Complete</div>
+          <div className="text-xs text-slate-600 dark:text-slate-300 font-medium">{completedPercent}% Complete</div>
         </div>
         <div className="w-32 flex justify-end gap-2">
           <button
@@ -1214,7 +1214,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
                     {isComplete && <Check size={16} className="text-white drop-shadow-md" strokeWidth={3} />}
                   </div>
                   
-                  <span className={`text-xs font-bold transition-colors ${isSelected ? 'text-indigo-700 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                  <span className={`text-xs font-bold transition-colors ${isSelected ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300'}`}>
                     {idx + 1}
                   </span>
 
