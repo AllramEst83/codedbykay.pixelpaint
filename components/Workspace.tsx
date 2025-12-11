@@ -27,6 +27,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   const [showHighlight, setShowHighlight] = useState(true);
   const [pixiReady, setPixiReady] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [completedColors, setCompletedColors] = useState<Set<number>>(new Set());
+  const [hiddenColors, setHiddenColors] = useState<Set<number>>(new Set());
   
   // Cursor state as ref (avoid React re-renders for cursor changes)
   const isOverHighlightedTileRef = useRef(false);
@@ -86,6 +88,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   
   // Animation frame ref
   const rafIdRef = useRef<number | null>(null);
+  
+  // Track programmatic color changes to prevent scrolling
+  const isProgrammaticColorChangeRef = useRef(false);
   
   // Keep refs in sync with state
   useEffect(() => { gridRef.current = grid; }, [grid]);
@@ -598,6 +603,56 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     };
   }, []);
 
+  // Initialize completed and hidden colors on mount (for saved projects)
+  useEffect(() => {
+    const initialCompleted = new Set<number>();
+    const initialHidden = new Set<number>();
+    
+    for (let idx = 0; idx < project.palette.length; idx++) {
+      const totalForColor = grid.filter(c => c.colorIndex === idx).length;
+      const correctlyFilledForColor = grid.filter(c => c.colorIndex === idx && c.filledColorIndex === idx).length;
+      if (totalForColor > 0 && correctlyFilledForColor === totalForColor) {
+        initialCompleted.add(idx);
+        initialHidden.add(idx);
+      }
+    }
+    
+    setCompletedColors(initialCompleted);
+    setHiddenColors(initialHidden);
+  }, []); // Only run on mount
+
+  // Trigger burst confetti animation for color completion
+  const triggerColorCompletionAnimation = useCallback((colorIndex: number, colorHex: string) => {
+    const paletteContainer = paletteScrollRef.current;
+    if (!paletteContainer) return;
+    
+    // Find the color button element
+    const colorButton = paletteContainer.querySelector(`[data-color-index="${colorIndex}"]`) as HTMLElement;
+    if (!colorButton) return;
+    
+    // Get button position relative to viewport
+    const rect = colorButton.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    // Convert to normalized coordinates (0-1) for canvas-confetti
+    const originX = centerX / window.innerWidth;
+    const originY = centerY / window.innerHeight;
+    
+    // Burst confetti animation
+    confetti({
+      particleCount: 75,
+      spread: 70,
+      origin: { x: originX, y: originY },
+      startVelocity: 35,
+      colors: [colorHex],
+      ticks: 100,
+      gravity: 0.8,
+      decay: 0.92,
+      zIndex: 9999,
+    });
+  }, []);
+
   // Calculate completion
   useEffect(() => {
     // Only count correctly filled cells (where filledColorIndex matches colorIndex)
@@ -605,6 +660,41 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     const total = grid.length;
     const percent = Math.round((correctlyFilled / total) * 100);
     setCompletedPercent(percent);
+    
+    // Check individual color completion
+    const newCompletedColors = new Set<number>();
+    for (let idx = 0; idx < project.palette.length; idx++) {
+      const totalForColor = grid.filter(c => c.colorIndex === idx).length;
+      const correctlyFilledForColor = grid.filter(c => c.colorIndex === idx && c.filledColorIndex === idx).length;
+      if (totalForColor > 0 && correctlyFilledForColor === totalForColor) {
+        newCompletedColors.add(idx);
+      }
+    }
+    
+    // Detect newly completed colors and trigger animation
+    setCompletedColors(prevCompleted => {
+      const newlyCompleted = new Set<number>();
+      newCompletedColors.forEach(colorIdx => {
+        if (!prevCompleted.has(colorIdx)) {
+          newlyCompleted.add(colorIdx);
+        }
+      });
+      
+      // Trigger animation for newly completed colors
+      if (newlyCompleted.size > 0) {
+        newlyCompleted.forEach(colorIdx => {
+          triggerColorCompletionAnimation(colorIdx, project.palette[colorIdx]);
+        });
+        // Hide newly completed colors
+        setHiddenColors(prevHidden => {
+          const newHidden = new Set(prevHidden);
+          newlyCompleted.forEach(colorIdx => newHidden.add(colorIdx));
+          return newHidden;
+        });
+      }
+      
+      return newCompletedColors;
+    });
     
     // Check if puzzle is completed (100% correctly filled)
     const isCompleted = correctlyFilled === total && total > 0;
@@ -668,7 +758,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         clearInterval(confettiInterval);
       }
     };
-  }, [grid, project]);
+  }, [grid, project, triggerColorCompletionAnimation]);
 
   // Palette scroll handlers
   const checkPaletteScroll = useCallback(() => {
@@ -679,6 +769,38 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     setCanScrollLeft(scrollLeft > 0);
     setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 1);
   }, []);
+
+  // Handle selected color being hidden - switch to next available color
+  useEffect(() => {
+    if (hiddenColors.has(selectedColorIndex)) {
+      // Find next available color after current index (or wrap around)
+      let nextAvailableColor = -1;
+      
+      // Try to find next available color after current index
+      for (let i = selectedColorIndex + 1; i < project.palette.length; i++) {
+        if (!hiddenColors.has(i)) {
+          nextAvailableColor = i;
+          break;
+        }
+      }
+      
+      // If not found, wrap around and search from start
+      if (nextAvailableColor === -1) {
+        for (let i = 0; i < selectedColorIndex; i++) {
+          if (!hiddenColors.has(i)) {
+            nextAvailableColor = i;
+            break;
+          }
+        }
+      }
+      
+      if (nextAvailableColor !== -1) {
+        // Mark as programmatic change to prevent scrolling
+        isProgrammaticColorChangeRef.current = true;
+        setSelectedColorIndex(nextAvailableColor);
+      }
+    }
+  }, [hiddenColors, selectedColorIndex, project.palette]);
 
   useEffect(() => {
     checkPaletteScroll();
@@ -691,11 +813,17 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         window.removeEventListener('resize', checkPaletteScroll);
       };
     }
-  }, [checkPaletteScroll, project.palette.length]);
+  }, [checkPaletteScroll, project.palette.length, hiddenColors]);
 
   useEffect(() => {
     const paletteContainer = paletteScrollRef.current;
     if (!paletteContainer) return;
+    
+    // Skip scrolling if this is a programmatic change (due to color being hidden)
+    if (isProgrammaticColorChangeRef.current) {
+      isProgrammaticColorChangeRef.current = false;
+      return;
+    }
     
     const selectedButton = paletteContainer.querySelector(`[data-color-index="${selectedColorIndex}"]`) as HTMLElement;
     if (selectedButton) {
@@ -1185,48 +1313,51 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
             ref={paletteScrollRef}
             className="flex gap-4 overflow-x-auto no-scrollbar p-4 snap-x flex-1"
           >
-            {project.palette.map((color, idx) => {
-              const isSelected = idx === selectedColorIndex;
-              const progress = getColorProgress(idx);
-              const isComplete = progress === 100;
+            {project.palette
+              .map((color, idx) => ({ color, idx }))
+              .filter(({ idx }) => !hiddenColors.has(idx))
+              .map(({ color, idx }) => {
+                const isSelected = idx === selectedColorIndex;
+                const progress = getColorProgress(idx);
+                const isComplete = progress === 100;
 
-              return (
-                <button
-                  key={idx}
-                  data-color-index={idx}
-                  onClick={() => setSelectedColorIndex(idx)}
-                  className={`
-                    flex-shrink-0 relative
-                    flex flex-col items-center justify-center gap-1.5
-                    w-14 h-20 rounded-2xl transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] snap-start
-                    border-2
-                    ${isSelected 
-                      ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-600 dark:border-indigo-500 shadow-lg -translate-y-2' 
-                      : 'bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-700'
-                    }
-                    ${isComplete ? 'opacity-60 grayscale-[0.3]' : ''}
-                  `}
-                >
-                  <div 
-                    className={`w-9 h-9 rounded-full shadow-sm border border-black/10 flex items-center justify-center transition-transform duration-300 ${isSelected ? 'scale-110' : ''}`}
-                    style={{ backgroundColor: color }}
+                return (
+                  <button
+                    key={idx}
+                    data-color-index={idx}
+                    onClick={() => setSelectedColorIndex(idx)}
+                    className={`
+                      flex-shrink-0 relative
+                      flex flex-col items-center justify-center gap-1.5
+                      w-14 h-20 rounded-2xl transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] snap-start
+                      border-2
+                      ${isSelected 
+                        ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-600 dark:border-indigo-500 shadow-lg -translate-y-2' 
+                        : 'bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-700'
+                      }
+                      ${isComplete ? 'opacity-60 grayscale-[0.3]' : ''}
+                    `}
                   >
-                    {isComplete && <Check size={16} className="text-white drop-shadow-md" strokeWidth={3} />}
-                  </div>
-                  
-                  <span className={`text-xs font-bold transition-colors ${isSelected ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300'}`}>
-                    {idx + 1}
-                  </span>
-
-                  <div className="absolute bottom-2 w-8 h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-green-500 dark:bg-green-600 transition-all duration-500 ease-out"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </button>
-              );
-            })}
+                      className={`w-9 h-9 rounded-full shadow-sm border border-black/10 flex items-center justify-center transition-transform duration-300 ${isSelected ? 'scale-110' : ''}`}
+                      style={{ backgroundColor: color }}
+                    >
+                      {isComplete && <Check size={16} className="text-white drop-shadow-md" strokeWidth={3} />}
+                    </div>
+                    
+                    <span className={`text-xs font-bold transition-colors ${isSelected ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300'}`}>
+                      {idx + 1}
+                    </span>
+
+                    <div className="absolute bottom-2 w-8 h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-green-500 dark:bg-green-600 transition-all duration-500 ease-out"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </button>
+                );
+              })}
           </div>
           
           <button
