@@ -88,10 +88,25 @@ export const InstructionsModal: React.FC<InstructionsModalProps> = ({ isOpen, on
             </div>
             <div className="flex-1">
               <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">
-                Zoom In & Out
+                Zoom Controls
               </h3>
               <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-                Use pinch gestures with two fingers to zoom in and out, or use the zoom controls in the top-right corner.
+                Use pinch gestures with two fingers to zoom, or use the zoom controls in the top-right corner. The zoom group includes zoom in (+), fit to screen, and zoom out (-) buttons.
+              </p>
+            </div>
+          </div>
+
+          {/* Step 5 */}
+          <div className="flex gap-4">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+              <span className="text-indigo-600 dark:text-indigo-400 font-bold text-sm">5</span>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">
+                Brush Size
+              </h3>
+              <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                Use the brush size controls below the zoom controls to select your painting brush size. Choose from 1 pixel (single cell), 4 pixels (2x2 cells), or 9 pixels (3x3 cells) for faster painting of larger areas.
               </p>
             </div>
           </div>
@@ -110,6 +125,10 @@ export const InstructionsModal: React.FC<InstructionsModalProps> = ({ isOpen, on
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-0.5">•</span>
                 <span>Toggle the lightbulb icon to show or hide color hints.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-indigo-500 mt-0.5">•</span>
+                <span>Use larger brush sizes (4 or 9 pixels) to fill multiple cells at once for faster painting.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-indigo-500 mt-0.5">•</span>
