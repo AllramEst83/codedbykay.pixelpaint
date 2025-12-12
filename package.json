@@ -1,7 +1,7 @@
 {
   "name": "pixelpaint-color-by-number",
   "private": true,
-  "version": "0.1.11",
+  "version": "0.1.12",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,8 @@
     "lucide-react": "^0.556.0",
     "pixi.js": "^8.14.3",
     "react": "^19.2.1",
-    "react-dom": "^19.2.1"
+    "react-dom": "^19.2.1",
+    "yet-another-react-lightbox": "^3.27.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

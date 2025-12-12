@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { ArrowLeft, Check, Minus, Plus, Lightbulb, LightbulbOff, Maximize, ChevronLeft, ChevronRight, Moon, Sun, Loader2, HelpCircle, Square, Paintbrush, Search } from 'lucide-react';
+import { ArrowLeft, Check, Minus, Plus, Lightbulb, LightbulbOff, Maximize, ChevronLeft, ChevronRight, Moon, Sun, Loader2, HelpCircle, Square, Paintbrush, Search, Image, X } from 'lucide-react';
 import { ProjectData, Cell } from '../types';
 import { saveProject } from '../services/storage';
 import { useTheme } from '../contexts/ThemeContext';
 import { InstructionsModal } from './InstructionsModal';
 import * as PIXI from 'pixi.js';
 import confetti from 'canvas-confetti';
+import Lightbox from 'yet-another-react-lightbox';
+import 'yet-another-react-lightbox/styles.css';
+import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 
 interface WorkspaceProps {
   project: ProjectData;
@@ -31,6 +34,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   const [hiddenColors, setHiddenColors] = useState<Set<number>>(new Set());
   const [brushSize, setBrushSize] = useState<number>(1); // Brush size in cells (1, 2, or 3)
   const [showCompletionMessage, setShowCompletionMessage] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showLightbox, setShowLightbox] = useState(false);
 
   // Cursor state as ref (avoid React re-renders for cursor changes)
   const isOverHighlightedTileRef = useRef(false);
@@ -572,6 +577,20 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       dirtyFlags.current.text = true;
     }
   }, [theme, generateNumberTextures]);
+
+  // Escape key handler for lightbox
+  useEffect(() => {
+    if (!showLightbox) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowLightbox(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [showLightbox]);
 
   // Resize handler
   useEffect(() => {
@@ -1508,6 +1527,60 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
           style={{ touchAction: 'none' }}
         />
 
+        {/* Image Preview Controls */}
+        <div className="absolute top-4 left-4 flex flex-col gap-1 bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-1 z-10">
+          <div className="px-2 py-1 flex items-center justify-center border-b border-slate-200 dark:border-slate-700 relative">
+            <Image size={16} className="text-slate-500 dark:text-slate-400" />
+            {showPreview && (
+              <button
+                onClick={() => setShowPreview(false)}
+                className="absolute right-1 p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+                title="Collapse preview"
+                aria-label="Collapse preview"
+              >
+                <X size={12} className="text-slate-500 dark:text-slate-400" />
+              </button>
+            )}
+          </div>
+          {showPreview ? (
+            <button
+              onClick={() => setShowLightbox(true)}
+              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors group relative"
+              title="Click to view full image"
+            >
+              <div className="w-24 h-24 rounded overflow-hidden border-2 border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-700 shadow-sm group-hover:border-indigo-400 dark:group-hover:border-indigo-500 transition-colors">
+                <img
+                  src={project.originalImage}
+                  alt="Preview"
+                  className="w-full h-full object-cover cursor-pointer"
+                />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 dark:group-hover:bg-black/20 rounded transition-colors pointer-events-none">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 dark:bg-slate-800/90 rounded-full p-2 shadow-lg">
+                  <Image size={16} className="text-indigo-600 dark:text-indigo-400" />
+                </div>
+              </div>
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowPreview(true)}
+              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors relative group"
+              title="Show preview"
+            >
+              <div className="w-8 h-8 rounded overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-700 shadow-sm">
+                <img
+                  src={project.originalImage}
+                  alt="Preview thumbnail"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded">
+                <Image size={12} className="text-white drop-shadow-md" />
+              </div>
+            </button>
+          )}
+        </div>
+
         {/* Floating Zoom Controls */}
         <div className="absolute top-4 right-4 flex flex-col gap-1 bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 p-1 z-10">
           <div className="px-2 py-1 flex items-center justify-center border-b border-slate-200 dark:border-slate-700">
@@ -1658,6 +1731,29 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
       <InstructionsModal
         isOpen={showInstructions}
         onClose={() => setShowInstructions(false)}
+      />
+
+      {/* Lightbox Viewer */}
+      <Lightbox
+        open={showLightbox}
+        close={() => setShowLightbox(false)}
+        slides={[{ src: project.originalImage }]}
+        plugins={[Zoom]}
+        render={{
+          buttonPrev: () => null,
+          buttonNext: () => null,
+        }}
+        zoom={{
+          maxZoomPixelRatio: 5,
+          zoomInMultiplier: 2,
+          doubleTapDelay: 300,
+          doubleClickDelay: 300,
+          doubleClickMaxStops: 2,
+          keyboardMoveDistance: 50,
+          wheelZoomDistanceFactor: 100,
+          pinchZoomDistanceFactor: 100,
+          scrollToZoom: true,
+        }}
       />
     </div>
   );
