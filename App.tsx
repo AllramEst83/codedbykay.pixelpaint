@@ -6,6 +6,7 @@ import { SetupWizard } from './components/SetupWizard';
 import { Workspace } from './components/Workspace';
 import { Button } from './components/Button';
 import { InstructionsModal } from './components/InstructionsModal';
+import { ConfirmationModal } from './components/ConfirmationModal';
 import { getProjects, saveProject, deleteProject } from './services/storage';
 import { useTheme } from './contexts/ThemeContext';
 
@@ -20,6 +21,7 @@ function App() {
   const [savedProjects, setSavedProjects] = useState<ProjectData[]>([]);
   const [autoOpenPicker, setAutoOpenPicker] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (view === 'HOME') {
@@ -50,9 +52,14 @@ function App() {
   // Handler: Delete project
   const handleDeleteProject = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm("Are you sure you want to delete this puzzle?")) {
-      deleteProject(id);
-      setSavedProjects(prev => prev.filter(p => p.id !== id));
+    setProjectToDelete(id);
+  };
+
+  const confirmDeleteProject = () => {
+    if (projectToDelete) {
+      deleteProject(projectToDelete);
+      setSavedProjects(prev => prev.filter(p => p.id !== projectToDelete));
+      setProjectToDelete(null);
     }
   };
 
@@ -219,6 +226,17 @@ function App() {
       <InstructionsModal 
         isOpen={showInstructions} 
         onClose={() => setShowInstructions(false)} 
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal 
+        isOpen={!!projectToDelete}
+        onClose={() => setProjectToDelete(null)}
+        onConfirm={confirmDeleteProject}
+        title="Delete Puzzle"
+        message="Are you sure you want to delete this puzzle? This action cannot be undone."
+        confirmLabel="Delete"
+        isDestructive
       />
     </div>
   );
