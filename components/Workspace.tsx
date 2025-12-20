@@ -1606,7 +1606,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
             onClick={() => setBrushSize(1)}
             className={`p-2 flex items-center justify-center rounded transition-colors ${
               brushSize === 1
-                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                ? 'bg-fuchsia-100 dark:bg-fuchsia-900/30 text-fuchsia-600 dark:text-fuchsia-400'
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
             title="1 pixel brush"
@@ -1617,7 +1617,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
             onClick={() => setBrushSize(2)}
             className={`p-2 flex items-center justify-center rounded transition-colors ${
               brushSize === 2
-                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                ? 'bg-fuchsia-100 dark:bg-fuchsia-900/30 text-fuchsia-600 dark:text-fuchsia-400'
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
             title="4 pixels brush (2x2)"
@@ -1633,7 +1633,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
             onClick={() => setBrushSize(3)}
             className={`p-2 flex items-center justify-center rounded transition-colors ${
               brushSize === 3
-                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                ? 'bg-fuchsia-100 dark:bg-fuchsia-900/30 text-fuchsia-600 dark:text-fuchsia-400'
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
             title="9 pixels brush (3x3)"
