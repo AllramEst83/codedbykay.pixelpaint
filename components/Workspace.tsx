@@ -843,6 +843,30 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     };
   }, [grid, project, triggerColorCompletionAnimation]);
 
+  // Calculate how many colors fit in the visible container
+  const calculateColorsPerSegment = useCallback(() => {
+    const paletteContainer = paletteScrollRef.current;
+    if (!paletteContainer) return 1;
+
+    // Get the first color button to measure its width
+    const firstColorButton = paletteContainer.querySelector('[data-color-index]') as HTMLElement;
+    if (!firstColorButton) return 1;
+
+    const containerWidth = paletteContainer.clientWidth;
+    const buttonRect = firstColorButton.getBoundingClientRect();
+    const buttonWidth = buttonRect.width;
+    
+    // Get computed gap between items (gap-4 = 1rem = 16px)
+    const containerStyles = window.getComputedStyle(paletteContainer);
+    const gap = parseFloat(containerStyles.gap) || 16;
+    
+    // Calculate how many colors fit: (containerWidth + gap) / (buttonWidth + gap)
+    // Add gap to containerWidth to account for the last item not needing trailing gap
+    const colorsPerSegment = Math.floor((containerWidth + gap) / (buttonWidth + gap));
+    
+    return Math.max(1, colorsPerSegment);
+  }, []);
+
   // Palette scroll handlers
   const checkPaletteScroll = useCallback(() => {
     const paletteContainer = paletteScrollRef.current;
@@ -891,12 +915,53 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     if (paletteContainer) {
       paletteContainer.addEventListener('scroll', checkPaletteScroll);
       window.addEventListener('resize', checkPaletteScroll);
+      
+      // Handle wheel events for segmented scrolling
+      const handleWheel = (e: WheelEvent) => {
+        // Check if the wheel event is over the palette container
+        const rect = paletteContainer.getBoundingClientRect();
+        const isOverPalette = e.clientX >= rect.left && e.clientX <= rect.right &&
+                              e.clientY >= rect.top && e.clientY <= rect.bottom;
+        
+        if (!isOverPalette) return;
+        
+        // Handle horizontal scrolling (primary) or vertical scrolling over palette
+        const hasHorizontalScroll = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+        const hasVerticalScroll = Math.abs(e.deltaY) > 0 && Math.abs(e.deltaX) < 5;
+        
+        if (hasHorizontalScroll || hasVerticalScroll) {
+          e.preventDefault();
+          
+          const colorsPerSegment = calculateColorsPerSegment();
+          const firstColorButton = paletteContainer.querySelector('[data-color-index]') as HTMLElement;
+          if (!firstColorButton) return;
+
+          const buttonRect = firstColorButton.getBoundingClientRect();
+          const buttonWidth = buttonRect.width;
+          const containerStyles = window.getComputedStyle(paletteContainer);
+          const gap = parseFloat(containerStyles.gap) || 16;
+          
+          // Calculate segment width
+          const segmentWidth = colorsPerSegment * (buttonWidth + gap);
+          
+          // Determine scroll direction
+          // For horizontal: use deltaX, for vertical: use deltaY (but scroll horizontally)
+          const delta = hasHorizontalScroll ? e.deltaX : e.deltaY;
+          const scrollAmount = delta > 0 ? segmentWidth : -segmentWidth;
+          
+          paletteContainer.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+        }
+      };
+      
+      paletteContainer.addEventListener('wheel', handleWheel, { passive: false });
+      
       return () => {
         paletteContainer.removeEventListener('scroll', checkPaletteScroll);
         window.removeEventListener('resize', checkPaletteScroll);
+        paletteContainer.removeEventListener('wheel', handleWheel);
       };
     }
-  }, [checkPaletteScroll, project.palette.length, hiddenColors]);
+  }, [checkPaletteScroll, calculateColorsPerSegment, project.palette.length, hiddenColors]);
 
   useEffect(() => {
     const paletteContainer = paletteScrollRef.current;
@@ -915,11 +980,41 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   }, [selectedColorIndex]);
 
   const scrollPaletteLeft = () => {
-    paletteScrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' });
+    const paletteContainer = paletteScrollRef.current;
+    if (!paletteContainer) return;
+
+    const colorsPerSegment = calculateColorsPerSegment();
+    const firstColorButton = paletteContainer.querySelector('[data-color-index]') as HTMLElement;
+    if (!firstColorButton) return;
+
+    const buttonRect = firstColorButton.getBoundingClientRect();
+    const buttonWidth = buttonRect.width;
+    const containerStyles = window.getComputedStyle(paletteContainer);
+    const gap = parseFloat(containerStyles.gap) || 16;
+    
+    // Calculate segment width: number of colors * (buttonWidth + gap)
+    const segmentWidth = colorsPerSegment * (buttonWidth + gap);
+    
+    paletteContainer.scrollBy({ left: -segmentWidth, behavior: 'smooth' });
   };
 
   const scrollPaletteRight = () => {
-    paletteScrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' });
+    const paletteContainer = paletteScrollRef.current;
+    if (!paletteContainer) return;
+
+    const colorsPerSegment = calculateColorsPerSegment();
+    const firstColorButton = paletteContainer.querySelector('[data-color-index]') as HTMLElement;
+    if (!firstColorButton) return;
+
+    const buttonRect = firstColorButton.getBoundingClientRect();
+    const buttonWidth = buttonRect.width;
+    const containerStyles = window.getComputedStyle(paletteContainer);
+    const gap = parseFloat(containerStyles.gap) || 16;
+    
+    // Calculate segment width: number of colors * (buttonWidth + gap)
+    const segmentWidth = colorsPerSegment * (buttonWidth + gap);
+    
+    paletteContainer.scrollBy({ left: segmentWidth, behavior: 'smooth' });
   };
 
   // Screen to grid coordinate conversion
