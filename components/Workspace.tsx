@@ -888,14 +888,24 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     // Calculate segment width
     const segmentWidth = colorsPerSegment * (buttonWidth + gap);
     
-    // Get current scroll position
+    // Get current scroll position and max scroll
     const currentScroll = paletteContainer.scrollLeft;
+    const maxScroll = paletteContainer.scrollWidth - paletteContainer.clientWidth;
     
     // Calculate which segment we're closest to
     const segmentIndex = Math.round(currentScroll / segmentWidth);
     
     // Calculate target scroll position
-    const targetScroll = segmentIndex * segmentWidth;
+    let targetScroll = segmentIndex * segmentWidth;
+    
+    // Ensure we don't exceed the maximum scroll position
+    // If we're near the end, snap to the maximum scroll to show the last colors
+    if (targetScroll > maxScroll - 10) {
+      targetScroll = maxScroll;
+    }
+    
+    // Clamp to valid range
+    targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
     
     // Only snap if we're not already at the target (within 5px tolerance)
     if (Math.abs(currentScroll - targetScroll) > 5) {
@@ -1006,10 +1016,18 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
           // For horizontal: use deltaX, for vertical: use deltaY (but scroll horizontally)
           const delta = hasHorizontalScroll ? e.deltaX : e.deltaY;
           
-          // Even small scrolls trigger full segment movement
+          // Calculate target scroll position
+          const currentScroll = paletteContainer.scrollLeft;
+          const maxScroll = paletteContainer.scrollWidth - paletteContainer.clientWidth;
           const scrollAmount = delta > 0 ? segmentWidth : -segmentWidth;
+          const targetScroll = Math.max(0, Math.min(currentScroll + scrollAmount, maxScroll));
           
-          paletteContainer.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+          // If scrolling would exceed max, scroll to the end instead
+          if (targetScroll >= maxScroll - 5) {
+            paletteContainer.scrollTo({ left: maxScroll, behavior: 'smooth' });
+          } else {
+            paletteContainer.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+          }
           
           // Mark as scrolling
           isScrollingRef.current = true;
@@ -1067,7 +1085,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     // Calculate segment width: number of colors * (buttonWidth + gap)
     const segmentWidth = colorsPerSegment * (buttonWidth + gap);
     
-    paletteContainer.scrollBy({ left: -segmentWidth, behavior: 'smooth' });
+    const currentScroll = paletteContainer.scrollLeft;
+    
+    // If scrolling would go below 0, scroll to the start
+    if (currentScroll - segmentWidth <= 5) {
+      paletteContainer.scrollTo({ left: 0, behavior: 'smooth' });
+    } else {
+      paletteContainer.scrollBy({ left: -segmentWidth, behavior: 'smooth' });
+    }
   };
 
   const scrollPaletteRight = () => {
@@ -1086,7 +1111,15 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     // Calculate segment width: number of colors * (buttonWidth + gap)
     const segmentWidth = colorsPerSegment * (buttonWidth + gap);
     
-    paletteContainer.scrollBy({ left: segmentWidth, behavior: 'smooth' });
+    const currentScroll = paletteContainer.scrollLeft;
+    const maxScroll = paletteContainer.scrollWidth - paletteContainer.clientWidth;
+    
+    // If scrolling would exceed max, scroll to the end instead
+    if (currentScroll + segmentWidth >= maxScroll - 5) {
+      paletteContainer.scrollTo({ left: maxScroll, behavior: 'smooth' });
+    } else {
+      paletteContainer.scrollBy({ left: segmentWidth, behavior: 'smooth' });
+    }
   };
 
   // Screen to grid coordinate conversion
