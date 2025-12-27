@@ -871,7 +871,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     return Math.max(1, colorsPerSegment);
   }, []);
 
-  // Snap to the nearest segment - more aggressive snapping
+  // Snap to the nearest segment
   const snapToNearestSegment = useCallback(() => {
     const paletteContainer = paletteScrollRef.current;
     if (!paletteContainer) return;
@@ -897,8 +897,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     // Calculate target scroll position
     const targetScroll = segmentIndex * segmentWidth;
     
-    // More aggressive snapping - snap if we're not exactly at the target (within 1px tolerance)
-    if (Math.abs(currentScroll - targetScroll) > 1) {
+    // Only snap if we're not already at the target (within 5px tolerance)
+    if (Math.abs(currentScroll - targetScroll) > 5) {
       paletteContainer.scrollTo({ left: targetScroll, behavior: 'smooth' });
     }
   }, [calculateColorsPerSegment]);
@@ -959,11 +959,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
           clearTimeout(scrollSnapTimeoutRef.current);
         }
         
-        // Snap to nearest segment after scrolling stops (shorter delay for more responsive snapping)
+        // Snap to nearest segment after scrolling stops (150ms delay)
         scrollSnapTimeoutRef.current = setTimeout(() => {
           isScrollingRef.current = false;
           snapToNearestSegment();
-        }, 100);
+        }, 150);
       };
       
       paletteContainer.addEventListener('scroll', handleScroll);
@@ -979,9 +979,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
         if (!isOverPalette) return;
         
         // Handle horizontal scrolling (primary) or vertical scrolling over palette
-        // Very low threshold for maximum sensitivity - trigger on any scroll movement
-        const hasHorizontalScroll = Math.abs(e.deltaX) > 0;
-        const hasVerticalScroll = Math.abs(e.deltaY) > 0;
+        const hasHorizontalScroll = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+        const hasVerticalScroll = Math.abs(e.deltaY) > 0 && Math.abs(e.deltaX) < 10;
         
         if (hasHorizontalScroll || hasVerticalScroll) {
           e.preventDefault();
@@ -1015,11 +1014,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
           // Mark as scrolling
           isScrollingRef.current = true;
           
-          // Set timeout to snap after scroll completes (shorter delay for more responsive snapping)
+          // Set timeout to snap after scroll completes
           scrollSnapTimeoutRef.current = setTimeout(() => {
             isScrollingRef.current = false;
             snapToNearestSegment();
-          }, 100);
+          }, 200);
         }
       };
       
@@ -1862,7 +1861,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
                       }
                       ${isComplete ? 'opacity-60 grayscale-[0.3]' : ''}
                     `}
-                    style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
+                    style={{ scrollSnapAlign: 'start' }}
                   >
                     <div
                       className={`w-9 h-9 rounded-full shadow-sm border border-black/10 flex items-center justify-center transition-transform duration-300 ${isSelected ? 'scale-110' : ''}`}
