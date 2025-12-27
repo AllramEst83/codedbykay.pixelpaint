@@ -105,6 +105,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   // Debounce completion calculation
   const completionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Scroll snap timeout
+  const scrollSnapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isScrollingRef = useRef(false);
+
   // Keep refs in sync with state
   useEffect(() => { gridRef.current = grid; }, [grid]);
   useEffect(() => { selectedColorIndexRef.current = selectedColorIndex; }, [selectedColorIndex]);
@@ -843,6 +847,72 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     };
   }, [grid, project, triggerColorCompletionAnimation]);
 
+  // Calculate how many colors fit in the visible container
+  const calculateColorsPerSegment = useCallback(() => {
+    const paletteContainer = paletteScrollRef.current;
+    if (!paletteContainer) return 1;
+
+    // Get the first color button to measure its width
+    const firstColorButton = paletteContainer.querySelector('[data-color-index]') as HTMLElement;
+    if (!firstColorButton) return 1;
+
+    const containerWidth = paletteContainer.clientWidth;
+    const buttonRect = firstColorButton.getBoundingClientRect();
+    const buttonWidth = buttonRect.width;
+    
+    // Get computed gap between items (gap-4 = 1rem = 16px)
+    const containerStyles = window.getComputedStyle(paletteContainer);
+    const gap = parseFloat(containerStyles.gap) || 16;
+    
+    // Calculate how many colors fit: (containerWidth + gap) / (buttonWidth + gap)
+    // Add gap to containerWidth to account for the last item not needing trailing gap
+    const colorsPerSegment = Math.floor((containerWidth + gap) / (buttonWidth + gap));
+    
+    return Math.max(1, colorsPerSegment);
+  }, []);
+
+  // Snap to the nearest segment
+  const snapToNearestSegment = useCallback(() => {
+    const paletteContainer = paletteScrollRef.current;
+    if (!paletteContainer) return;
+
+    const colorsPerSegment = calculateColorsPerSegment();
+    const firstColorButton = paletteContainer.querySelector('[data-color-index]') as HTMLElement;
+    if (!firstColorButton) return;
+
+    const buttonRect = firstColorButton.getBoundingClientRect();
+    const buttonWidth = buttonRect.width;
+    const containerStyles = window.getComputedStyle(paletteContainer);
+    const gap = parseFloat(containerStyles.gap) || 16;
+    
+    // Calculate segment width
+    const segmentWidth = colorsPerSegment * (buttonWidth + gap);
+    
+    // Get current scroll position and max scroll
+    const currentScroll = paletteContainer.scrollLeft;
+    const maxScroll = paletteContainer.scrollWidth - paletteContainer.clientWidth;
+    
+    // Calculate which segment we're closest to
+    const segmentIndex = Math.round(currentScroll / segmentWidth);
+    
+    // Calculate target scroll position
+    let targetScroll = segmentIndex * segmentWidth;
+    
+    // Ensure we don't exceed the maximum scroll position
+    // If we're near the end, snap to the maximum scroll to show the last colors
+    if (targetScroll > maxScroll - 10) {
+      targetScroll = maxScroll;
+    }
+    
+    // Clamp to valid range
+    targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+    
+    // Only snap if we're not already at the target (within 5px tolerance)
+    if (Math.abs(currentScroll - targetScroll) > 5) {
+      paletteContainer.scrollTo({ left: targetScroll, behavior: 'smooth' });
+    }
+  }, [calculateColorsPerSegment]);
+
   // Palette scroll handlers
   const checkPaletteScroll = useCallback(() => {
     const paletteContainer = paletteScrollRef.current;
@@ -889,14 +959,99 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
     checkPaletteScroll();
     const paletteContainer = paletteScrollRef.current;
     if (paletteContainer) {
-      paletteContainer.addEventListener('scroll', checkPaletteScroll);
+      // Handle scroll events - snap to nearest segment when scrolling stops
+      const handleScroll = () => {
+        checkPaletteScroll();
+        isScrollingRef.current = true;
+        
+        // Clear existing timeout
+        if (scrollSnapTimeoutRef.current) {
+          clearTimeout(scrollSnapTimeoutRef.current);
+        }
+        
+        // Snap to nearest segment after scrolling stops (150ms delay)
+        scrollSnapTimeoutRef.current = setTimeout(() => {
+          isScrollingRef.current = false;
+          snapToNearestSegment();
+        }, 150);
+      };
+      
+      paletteContainer.addEventListener('scroll', handleScroll);
       window.addEventListener('resize', checkPaletteScroll);
+      
+      // Handle wheel events for segmented scrolling - more aggressive snapping
+      const handleWheel = (e: WheelEvent) => {
+        // Check if the wheel event is over the palette container
+        const rect = paletteContainer.getBoundingClientRect();
+        const isOverPalette = e.clientX >= rect.left && e.clientX <= rect.right &&
+                              e.clientY >= rect.top && e.clientY <= rect.bottom;
+        
+        if (!isOverPalette) return;
+        
+        // Handle horizontal scrolling (primary) or vertical scrolling over palette
+        const hasHorizontalScroll = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+        const hasVerticalScroll = Math.abs(e.deltaY) > 0 && Math.abs(e.deltaX) < 10;
+        
+        if (hasHorizontalScroll || hasVerticalScroll) {
+          e.preventDefault();
+          
+          // Clear any pending snap timeout since we're actively scrolling
+          if (scrollSnapTimeoutRef.current) {
+            clearTimeout(scrollSnapTimeoutRef.current);
+          }
+          
+          const colorsPerSegment = calculateColorsPerSegment();
+          const firstColorButton = paletteContainer.querySelector('[data-color-index]') as HTMLElement;
+          if (!firstColorButton) return;
+
+          const buttonRect = firstColorButton.getBoundingClientRect();
+          const buttonWidth = buttonRect.width;
+          const containerStyles = window.getComputedStyle(paletteContainer);
+          const gap = parseFloat(containerStyles.gap) || 16;
+          
+          // Calculate segment width
+          const segmentWidth = colorsPerSegment * (buttonWidth + gap);
+          
+          // Determine scroll direction
+          // For horizontal: use deltaX, for vertical: use deltaY (but scroll horizontally)
+          const delta = hasHorizontalScroll ? e.deltaX : e.deltaY;
+          
+          // Calculate target scroll position
+          const currentScroll = paletteContainer.scrollLeft;
+          const maxScroll = paletteContainer.scrollWidth - paletteContainer.clientWidth;
+          const scrollAmount = delta > 0 ? segmentWidth : -segmentWidth;
+          const targetScroll = Math.max(0, Math.min(currentScroll + scrollAmount, maxScroll));
+          
+          // If scrolling would exceed max, scroll to the end instead
+          if (targetScroll >= maxScroll - 5) {
+            paletteContainer.scrollTo({ left: maxScroll, behavior: 'smooth' });
+          } else {
+            paletteContainer.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+          }
+          
+          // Mark as scrolling
+          isScrollingRef.current = true;
+          
+          // Set timeout to snap after scroll completes
+          scrollSnapTimeoutRef.current = setTimeout(() => {
+            isScrollingRef.current = false;
+            snapToNearestSegment();
+          }, 200);
+        }
+      };
+      
+      paletteContainer.addEventListener('wheel', handleWheel, { passive: false });
+      
       return () => {
-        paletteContainer.removeEventListener('scroll', checkPaletteScroll);
+        paletteContainer.removeEventListener('scroll', handleScroll);
         window.removeEventListener('resize', checkPaletteScroll);
+        paletteContainer.removeEventListener('wheel', handleWheel);
+        if (scrollSnapTimeoutRef.current) {
+          clearTimeout(scrollSnapTimeoutRef.current);
+        }
       };
     }
-  }, [checkPaletteScroll, project.palette.length, hiddenColors]);
+  }, [checkPaletteScroll, calculateColorsPerSegment, snapToNearestSegment, project.palette.length, hiddenColors]);
 
   useEffect(() => {
     const paletteContainer = paletteScrollRef.current;
@@ -915,11 +1070,56 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
   }, [selectedColorIndex]);
 
   const scrollPaletteLeft = () => {
-    paletteScrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' });
+    const paletteContainer = paletteScrollRef.current;
+    if (!paletteContainer) return;
+
+    const colorsPerSegment = calculateColorsPerSegment();
+    const firstColorButton = paletteContainer.querySelector('[data-color-index]') as HTMLElement;
+    if (!firstColorButton) return;
+
+    const buttonRect = firstColorButton.getBoundingClientRect();
+    const buttonWidth = buttonRect.width;
+    const containerStyles = window.getComputedStyle(paletteContainer);
+    const gap = parseFloat(containerStyles.gap) || 16;
+    
+    // Calculate segment width: number of colors * (buttonWidth + gap)
+    const segmentWidth = colorsPerSegment * (buttonWidth + gap);
+    
+    const currentScroll = paletteContainer.scrollLeft;
+    
+    // If scrolling would go below 0, scroll to the start
+    if (currentScroll - segmentWidth <= 5) {
+      paletteContainer.scrollTo({ left: 0, behavior: 'smooth' });
+    } else {
+      paletteContainer.scrollBy({ left: -segmentWidth, behavior: 'smooth' });
+    }
   };
 
   const scrollPaletteRight = () => {
-    paletteScrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' });
+    const paletteContainer = paletteScrollRef.current;
+    if (!paletteContainer) return;
+
+    const colorsPerSegment = calculateColorsPerSegment();
+    const firstColorButton = paletteContainer.querySelector('[data-color-index]') as HTMLElement;
+    if (!firstColorButton) return;
+
+    const buttonRect = firstColorButton.getBoundingClientRect();
+    const buttonWidth = buttonRect.width;
+    const containerStyles = window.getComputedStyle(paletteContainer);
+    const gap = parseFloat(containerStyles.gap) || 16;
+    
+    // Calculate segment width: number of colors * (buttonWidth + gap)
+    const segmentWidth = colorsPerSegment * (buttonWidth + gap);
+    
+    const currentScroll = paletteContainer.scrollLeft;
+    const maxScroll = paletteContainer.scrollWidth - paletteContainer.clientWidth;
+    
+    // If scrolling would exceed max, scroll to the end instead
+    if (currentScroll + segmentWidth >= maxScroll - 5) {
+      paletteContainer.scrollTo({ left: maxScroll, behavior: 'smooth' });
+    } else {
+      paletteContainer.scrollBy({ left: segmentWidth, behavior: 'smooth' });
+    }
   };
 
   // Screen to grid coordinate conversion
@@ -1667,7 +1867,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
 
           <div
             ref={paletteScrollRef}
-            className="flex gap-4 overflow-x-auto no-scrollbar p-4 snap-x flex-1"
+            className="flex gap-4 overflow-x-auto no-scrollbar p-4 snap-x snap-mandatory flex-1"
+            style={{ scrollSnapType: 'x mandatory', scrollPadding: '0 1rem' }}
           >
             {project.palette
               .map((color, idx) => ({ color, idx }))
@@ -1693,6 +1894,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ project, onExit }) => {
                       }
                       ${isComplete ? 'opacity-60 grayscale-[0.3]' : ''}
                     `}
+                    style={{ scrollSnapAlign: 'start' }}
                   >
                     <div
                       className={`w-9 h-9 rounded-full shadow-sm border border-black/10 flex items-center justify-center transition-transform duration-300 ${isSelected ? 'scale-110' : ''}`}
