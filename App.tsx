@@ -83,7 +83,26 @@ function App() {
     );
   }
 
-  if (view === 'CROP' && selectedFile) {
+  if (view === 'CROP') {
+    if (!selectedFile) {
+      // Fallback if file is missing
+      return (
+        <div className="h-full w-full flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+          <div className="text-center">
+            <p className="text-slate-600 dark:text-slate-400 mb-4">No image selected</p>
+            <button
+              onClick={() => {
+                setView('HOME');
+                setAutoOpenPicker(true);
+              }}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <ImageCropper
         imageFile={selectedFile}
