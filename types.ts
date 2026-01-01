@@ -23,4 +23,4 @@ export interface ProjectData {
   completed?: boolean; // Whether the puzzle is fully completed
 }
 
-export type AppView = 'HOME' | 'SETUP' | 'WORKSPACE';
+export type AppView = 'HOME' | 'CROP' | 'SETUP' | 'WORKSPACE';
