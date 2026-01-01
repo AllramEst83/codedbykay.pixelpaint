@@ -16,6 +16,7 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({ imageFile, onCrop, o
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -23,19 +24,42 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({ imageFile, onCrop, o
 
   // Load image
   useEffect(() => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const src = e.target?.result as string;
-      setImageSrc(src);
-      
-      // Load image to get dimensions
-      const img = new Image();
-      img.onload = () => {
-        setImageSize({ width: img.width, height: img.height });
+    try {
+      setError(null);
+      const reader = new FileReader();
+      reader.onerror = () => {
+        setError('Failed to read image file');
       };
-      img.src = src;
-    };
-    reader.readAsDataURL(imageFile);
+      reader.onload = (e) => {
+        try {
+          const src = e.target?.result as string;
+          if (!src) {
+            setError('Failed to load image');
+            return;
+          }
+          setImageSrc(src);
+          
+          // Load image to get dimensions
+          const img = new Image();
+          img.onerror = () => {
+            setError('Failed to load image');
+          };
+          img.onload = () => {
+            if (img.width > 0 && img.height > 0) {
+              setImageSize({ width: img.width, height: img.height });
+            } else {
+              setError('Invalid image dimensions');
+            }
+          };
+          img.src = src;
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to process image');
+        }
+      };
+      reader.readAsDataURL(imageFile);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to read file');
+    }
   }, [imageFile]);
 
   // Initialize crop when both image and container are ready
@@ -55,16 +79,26 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({ imageFile, onCrop, o
   useEffect(() => {
     const updateContainerSize = () => {
       if (containerRef.current) {
-        setContainerSize({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight
-        });
+        const width = containerRef.current.clientWidth;
+        const height = containerRef.current.clientHeight;
+        if (width > 0 && height > 0) {
+          setContainerSize({ width, height });
+        }
       }
     };
     
-    updateContainerSize();
+    // Initial measurement with a small delay to ensure DOM is ready
+    const timeoutId = setTimeout(updateContainerSize, 0);
+    
+    // Also try after a short delay in case the first attempt is too early
+    const timeoutId2 = setTimeout(updateContainerSize, 100);
+    
     window.addEventListener('resize', updateContainerSize);
-    return () => window.removeEventListener('resize', updateContainerSize);
+    return () => {
+      clearTimeout(timeoutId);
+      clearTimeout(timeoutId2);
+      window.removeEventListener('resize', updateContainerSize);
+    };
   }, []);
 
   const getSquareSize = useCallback((): number => {
@@ -244,10 +278,12 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({ imageFile, onCrop, o
   };
 
   const squareSize = getSquareSize();
+  const isValidSquareSize = squareSize > 0;
 
+  // Always render the component structure, even if image isn't loaded yet
   return (
     <div className="flex flex-col h-full w-full bg-slate-50 dark:bg-slate-900 max-w-5xl mx-auto p-4 md:p-6 overflow-hidden">
-      {/* Header */}
+      {/* Header - always visible */}
       <div className="flex items-center justify-between mb-6 shrink-0 gap-2 md:gap-4">
         <button 
           onClick={onCancel} 
@@ -264,7 +300,7 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({ imageFile, onCrop, o
       {/* Cropper Area */}
       <div 
         ref={containerRef}
-        className="flex-1 flex items-center justify-center relative overflow-hidden bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 min-h-0"
+        className="flex-1 flex items-center justify-center relative overflow-hidden bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 min-h-[400px]"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -275,66 +311,9 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({ imageFile, onCrop, o
         onWheel={handleWheel}
         style={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
       >
-        {imageSrc && (
+        {imageSrc && imageSize.width > 0 && imageSize.height > 0 && (
           <>
-            {/* Overlay with square cutout - using 4 rectangles */}
-            <div className="absolute inset-0 pointer-events-none z-10">
-              {/* Top overlay */}
-              <div 
-                className="absolute bg-black/60"
-                style={{
-                  left: 0,
-                  top: 0,
-                  right: 0,
-                  height: `calc(50% - ${squareSize / 2}px)`,
-                }}
-              />
-              {/* Bottom overlay */}
-              <div 
-                className="absolute bg-black/60"
-                style={{
-                  left: 0,
-                  bottom: 0,
-                  right: 0,
-                  height: `calc(50% - ${squareSize / 2}px)`,
-                }}
-              />
-              {/* Left overlay */}
-              <div 
-                className="absolute bg-black/60"
-                style={{
-                  left: 0,
-                  top: `calc(50% - ${squareSize / 2}px)`,
-                  bottom: `calc(50% - ${squareSize / 2}px)`,
-                  width: `calc(50% - ${squareSize / 2}px)`,
-                }}
-              />
-              {/* Right overlay */}
-              <div 
-                className="absolute bg-black/60"
-                style={{
-                  right: 0,
-                  top: `calc(50% - ${squareSize / 2}px)`,
-                  bottom: `calc(50% - ${squareSize / 2}px)`,
-                  width: `calc(50% - ${squareSize / 2}px)`,
-                }}
-              />
-            </div>
-            
-            {/* Square border */}
-            <div
-              className="absolute border-2 border-white dark:border-slate-200 shadow-lg pointer-events-none z-20"
-              style={{
-                width: squareSize,
-                height: squareSize,
-                left: '50%',
-                top: '50%',
-                transform: 'translate(-50%, -50%)',
-                boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.3)',
-              }}
-            />
-            
-            {/* Image */}
+            {/* Image - render first so it's behind overlay */}
             <img
               ref={imageRef}
               src={imageSrc}
@@ -349,8 +328,90 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({ imageFile, onCrop, o
                 pointerEvents: 'none',
               }}
               draggable={false}
+              onError={(e) => {
+                console.error('Failed to load image:', e);
+              }}
             />
+            
+            {/* Overlay and border - only render when squareSize is valid */}
+            {isValidSquareSize && (
+              <>
+                {/* Overlay with square cutout - using 4 rectangles */}
+                <div className="absolute inset-0 pointer-events-none z-10">
+                  {/* Top overlay */}
+                  <div 
+                    className="absolute bg-black/60"
+                    style={{
+                      left: 0,
+                      top: 0,
+                      right: 0,
+                      height: `calc(50% - ${squareSize / 2}px)`,
+                    }}
+                  />
+                  {/* Bottom overlay */}
+                  <div 
+                    className="absolute bg-black/60"
+                    style={{
+                      left: 0,
+                      bottom: 0,
+                      right: 0,
+                      height: `calc(50% - ${squareSize / 2}px)`,
+                    }}
+                  />
+                  {/* Left overlay */}
+                  <div 
+                    className="absolute bg-black/60"
+                    style={{
+                      left: 0,
+                      top: `calc(50% - ${squareSize / 2}px)`,
+                      bottom: `calc(50% - ${squareSize / 2}px)`,
+                      width: `calc(50% - ${squareSize / 2}px)`,
+                    }}
+                  />
+                  {/* Right overlay */}
+                  <div 
+                    className="absolute bg-black/60"
+                    style={{
+                      right: 0,
+                      top: `calc(50% - ${squareSize / 2}px)`,
+                      bottom: `calc(50% - ${squareSize / 2}px)`,
+                      width: `calc(50% - ${squareSize / 2}px)`,
+                    }}
+                  />
+                </div>
+                
+                {/* Square border */}
+                <div
+                  className="absolute border-2 border-white dark:border-slate-200 shadow-lg pointer-events-none z-20"
+                  style={{
+                    width: squareSize,
+                    height: squareSize,
+                    left: '50%',
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.3)',
+                  }}
+                />
+              </>
+            )}
           </>
+        )}
+        {!imageSrc && !error && (
+          <div className="text-slate-400 dark:text-slate-500 text-center">
+            Loading image...
+          </div>
+        )}
+        {error && (
+          <div className="text-red-500 dark:text-red-400 text-center p-4">
+            <div className="font-semibold mb-2">Error</div>
+            <div className="text-sm">{error}</div>
+            <button
+              onClick={onCancel}
+              className="mt-4 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-lg transition-colors"
+            >
+              Go Back
+            </button>
+          </div>
         )}
       </div>
 
