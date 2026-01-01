@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Palette, Trash2, ArrowRight, Moon, Sun, CheckCircle2, HelpCircle } from 'lucide-react';
 import { AppView, ProjectData } from './types';
 import { ImageUploader } from './components/ImageUploader';
+import { ImageCropper } from './components/ImageCropper';
 import { SetupWizard } from './components/SetupWizard';
 import { Workspace } from './components/Workspace';
 import { Button } from './components/Button';
@@ -32,8 +33,14 @@ function App() {
   // Handler: User selects an image
   const handleImageSelected = (file: File) => {
     setSelectedFile(file);
-    setView('SETUP');
+    setView('CROP');
     setAutoOpenPicker(false); // Reset the flag when a file is selected
+  };
+
+  // Handler: User crops image
+  const handleImageCropped = (croppedFile: File) => {
+    setSelectedFile(croppedFile);
+    setView('SETUP');
   };
 
   // Handler: Setup complete, start workspace
@@ -76,14 +83,27 @@ function App() {
     );
   }
 
+  if (view === 'CROP' && selectedFile) {
+    return (
+      <ImageCropper
+        imageFile={selectedFile}
+        onCrop={handleImageCropped}
+        onCancel={() => {
+          setSelectedFile(null);
+          setAutoOpenPicker(true);
+          setView('HOME');
+        }}
+      />
+    );
+  }
+
   if (view === 'SETUP' && selectedFile) {
     return (
       <SetupWizard 
         imageFile={selectedFile} 
         onBack={() => {
           setSelectedFile(null);
-          setAutoOpenPicker(true);
-          setView('HOME');
+          setView('CROP');
         }} 
         onComplete={handleSetupComplete}
       />
